@@ -8,6 +8,7 @@ import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { ErrorManager } from './error-manager';
 import { getWebSearchHookEnv } from './websearch-manager';
 import { wireChildProcessSignals } from './signal-forwarder';
+import { loadOrCreateUnifiedConfig } from '../config/unified-config-loader';
 
 /**
  * Strip ANTHROPIC_* env vars from an environment object.
@@ -38,6 +39,22 @@ export function stripClaudeCodeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     }
   }
   return result;
+}
+
+/**
+ * Resolve CCS-managed environment overrides for Claude launch.
+ * - preferences.auto_update: false -> DISABLE_AUTOUPDATER=1
+ */
+export function getClaudeLaunchEnvOverrides(): NodeJS.ProcessEnv {
+  try {
+    const config = loadOrCreateUnifiedConfig();
+    if (config.preferences?.auto_update === false) {
+      return { DISABLE_AUTOUPDATER: '1' };
+    }
+  } catch {
+    // Config read errors should never block Claude launch.
+  }
+  return {};
 }
 
 /**
@@ -84,6 +101,7 @@ export function execClaude(
 
   // Get WebSearch hook config env vars
   const webSearchEnv = getWebSearchHookEnv();
+  const claudeLaunchEnv = getClaudeLaunchEnvOverrides();
 
   // For account/default profiles, strip ANTHROPIC_* from parent env to prevent
   // stale proxy config (e.g., from prior CLIProxy sessions) from interfering
@@ -97,8 +115,8 @@ export function execClaude(
 
   // Prepare environment (merge with base env if envVars provided)
   const mergedEnv = envVars
-    ? { ...baseEnv, ...envVars, ...webSearchEnv }
-    : { ...baseEnv, ...webSearchEnv };
+    ? { ...baseEnv, ...claudeLaunchEnv, ...envVars, ...webSearchEnv }
+    : { ...baseEnv, ...claudeLaunchEnv, ...webSearchEnv };
 
   // Strip Claude Code nested session guard env var to allow CCS delegation
   // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)

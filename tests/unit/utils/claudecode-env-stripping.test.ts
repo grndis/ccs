@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { EventEmitter } from 'events';
 import * as childProcess from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 type SpawnCall = {
   command: string;
@@ -13,6 +16,8 @@ const originalPlatform = process.platform;
 let baselineSigintListeners: Array<(...args: unknown[]) => void> = [];
 let baselineSigtermListeners: Array<(...args: unknown[]) => void> = [];
 let baselineSighupListeners: Array<(...args: unknown[]) => void> = [];
+let originalCcsHome: string | undefined;
+let originalDisableAutoUpdater: string | undefined;
 const realSpawn = childProcess.spawn.bind(childProcess);
 const realSpawnSync = childProcess.spawnSync.bind(childProcess);
 const realExecSync = childProcess.execSync.bind(childProcess);
@@ -95,6 +100,18 @@ function registerChildProcessMock(): void {
   }));
 }
 
+function writeConfigWithAutoUpdatePreference(enabled: boolean): void {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-auto-update-pref-'));
+  process.env.CCS_HOME = tempHome;
+  const ccsDir = path.join(tempHome, '.ccs');
+  fs.mkdirSync(ccsDir, { recursive: true });
+  const yaml = `version: 8
+preferences:
+  auto_update: ${enabled ? 'true' : 'false'}
+`;
+  fs.writeFileSync(path.join(ccsDir, 'config.yaml'), yaml, 'utf8');
+}
+
 let execClaude: typeof import('../../../src/utils/shell-executor').execClaude;
 let stripClaudeCodeEnv: typeof import('../../../src/utils/shell-executor').stripClaudeCodeEnv;
 let HeadlessExecutor: typeof import('../../../src/delegation/headless-executor').HeadlessExecutor;
@@ -118,6 +135,9 @@ describe('CLAUDECODE environment stripping', () => {
   beforeEach(() => {
     spawnCalls.length = 0;
     process.env.CCS_QUIET = '1';
+    originalCcsHome = process.env.CCS_HOME;
+    originalDisableAutoUpdater = process.env.DISABLE_AUTOUPDATER;
+    delete process.env.DISABLE_AUTOUPDATER;
     baselineSigintListeners = process.listeners('SIGINT');
     baselineSigtermListeners = process.listeners('SIGTERM');
     baselineSighupListeners = process.listeners('SIGHUP');
@@ -128,6 +148,13 @@ describe('CLAUDECODE environment stripping', () => {
     delete process.env.CLAUDECODE;
     delete process.env.claudecode;
     delete process.env.CCS_QUIET;
+    if (originalCcsHome !== undefined) process.env.CCS_HOME = originalCcsHome;
+    else delete process.env.CCS_HOME;
+    if (originalDisableAutoUpdater !== undefined) {
+      process.env.DISABLE_AUTOUPDATER = originalDisableAutoUpdater;
+    } else {
+      delete process.env.DISABLE_AUTOUPDATER;
+    }
 
     for (const listener of process.listeners('SIGINT')) {
       if (!baselineSigintListeners.includes(listener)) {
@@ -197,7 +224,26 @@ describe('CLAUDECODE environment stripping', () => {
     expect(Object.keys(env).map((k) => k.toUpperCase())).not.toContain('CLAUDECODE');
   });
 
+  it('execClaude sets DISABLE_AUTOUPDATER=1 when preferences.auto_update is false', () => {
+    writeConfigWithAutoUpdatePreference(false);
+    execClaude('claude', ['--version'], { CCS_PROFILE_TYPE: 'default' });
+
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    const env = spawnCalls[0].options?.env as NodeJS.ProcessEnv;
+    expect(env.DISABLE_AUTOUPDATER).toBe('1');
+  });
+
+  it('execClaude does not force DISABLE_AUTOUPDATER when preferences.auto_update is true', () => {
+    writeConfigWithAutoUpdatePreference(true);
+    execClaude('claude', ['--version'], { CCS_PROFILE_TYPE: 'default' });
+
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    const env = spawnCalls[0].options?.env as NodeJS.ProcessEnv;
+    expect(env.DISABLE_AUTOUPDATER).toBeUndefined();
+  });
+
   it('headless executor spawn path strips CLAUDECODE before spawn', async () => {
+    writeConfigWithAutoUpdatePreference(false);
     process.env.CLAUDECODE = 'nested';
     process.env.claudecode = 'nested-lower';
 
@@ -237,5 +283,6 @@ describe('CLAUDECODE environment stripping', () => {
     expect(spawnCalls.length).toBeGreaterThan(0);
     const env = spawnCalls[0].options?.env as NodeJS.ProcessEnv;
     expect(Object.keys(env).map((k) => k.toUpperCase())).not.toContain('CLAUDECODE');
+    expect(env.DISABLE_AUTOUPDATER).toBe('1');
   });
 });

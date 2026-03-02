@@ -44,7 +44,12 @@ import { handleShellCompletionCommand } from './commands/shell-completion-comman
 import { handleUpdateCommand } from './commands/update-command';
 
 // Import extracted utility functions
-import { execClaude, escapeShellArg, stripClaudeCodeEnv } from './utils/shell-executor';
+import {
+  execClaude,
+  escapeShellArg,
+  stripClaudeCodeEnv,
+  getClaudeLaunchEnvOverrides,
+} from './utils/shell-executor';
 import { wireChildProcessSignals } from './utils/signal-forwarder';
 
 // Import target adapter system
@@ -210,8 +215,10 @@ async function execClaudeWithProxy(
   const needsShell = isWindows && /\.(cmd|bat)$/i.test(claudeCli);
   const webSearchEnv = getWebSearchHookEnv();
   const imageAnalysisEnv = getImageAnalysisHookEnv(profileName);
+  const claudeLaunchEnv = getClaudeLaunchEnvOverrides();
   const env = stripClaudeCodeEnv({
     ...process.env,
+    ...claudeLaunchEnv,
     ...envVars,
     ...webSearchEnv,
     ...imageAnalysisEnv,

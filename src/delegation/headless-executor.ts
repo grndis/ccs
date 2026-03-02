@@ -17,7 +17,7 @@ import { StreamBuffer, formatToolVerbose } from './executor/stream-parser';
 import { buildExecutionResult } from './executor/result-aggregator';
 import { getCcsDir, getModelDisplayName } from '../utils/config-manager';
 import { getProfileLookupCandidates } from '../utils/profile-compat';
-import { stripClaudeCodeEnv } from '../utils/shell-executor';
+import { getClaudeLaunchEnvOverrides, stripClaudeCodeEnv } from '../utils/shell-executor';
 
 // Re-export types for consumers
 export type { ExecutionOptions, ExecutionResult, StreamMessage } from './executor/types';
@@ -210,7 +210,10 @@ export class HeadlessExecutor {
 
       // Strip Claude Code nested session guard env var to allow CCS delegation
       // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)
-      const cleanEnv = stripClaudeCodeEnv(process.env);
+      const cleanEnv = stripClaudeCodeEnv({
+        ...process.env,
+        ...getClaudeLaunchEnvOverrides(),
+      });
 
       const proc = spawn(claudeCli, args, {
         cwd,
