@@ -67,7 +67,7 @@ The dashboard provides visual management for all account types:
 - **Factory Droid**: Track Droid install location and BYOK settings health
 - **Updates Center**: Track support rollouts (Droid target, CLIProxy provider changes, WebSearch integrations)
 - **Health Monitor**: Real-time status across all profiles
-- **Language Switcher**: Toggle dashboard locale between English and Simplified Chinese
+- **Language Switcher**: Toggle dashboard locale between English, Simplified Chinese, and Vietnamese
 
 **Analytics Dashboard**
 

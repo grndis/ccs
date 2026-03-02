@@ -59,4 +59,5 @@ For full architecture, conventions, and locale onboarding, see:
 
 - UI locale persistence uses browser localStorage key `ccs-ui-locale`.
 - Current supported locales are managed in `ui/src/lib/locales.ts`.
+- Current locales: `en`, `zh-CN`, `vi`.
 - Fallback locale is English (`en`).

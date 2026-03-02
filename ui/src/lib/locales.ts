@@ -1,6 +1,6 @@
 export const LOCALE_STORAGE_KEY = 'ccs-ui-locale';
 
-export const SUPPORTED_LOCALES = ['en', 'zh-CN'] as const;
+export const SUPPORTED_LOCALES = ['en', 'zh-CN', 'vi'] as const;
 
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 
@@ -11,6 +11,7 @@ export function isSupportedLocale(locale: string): locale is AppLocale {
 export function normalizeLocale(locale: string | null | undefined): AppLocale {
   if (!locale) return 'en';
   if (locale.toLowerCase().startsWith('zh')) return 'zh-CN';
+  if (locale.toLowerCase().startsWith('vi')) return 'vi';
   return 'en';
 }
 

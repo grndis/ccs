@@ -13,6 +13,7 @@ Dashboard i18n currently covers UI text rendered by React components.
 - Supported locales today:
   - `en` (English)
   - `zh-CN` (Simplified Chinese)
+  - `vi` (Vietnamese)
 - Locale state is persisted in browser localStorage using `ccs-ui-locale`.
 - Fallback language is `en`.
 
@@ -36,6 +37,7 @@ Out of scope:
 - Contains `resources` object with locale blocks:
   - `en.translation`
   - `zh-CN.translation`
+  - `vi.translation`
 - Uses `initReactI18next` for React integration.
 
 ### Locale utilities
@@ -85,7 +87,7 @@ Examples exist in sync/account counters.
 
 ## Adding a New Locale
 
-When adding a locale such as Vietnamese (`vi`):
+When adding a locale such as Thai (`th`):
 
 1. Add locale id to the supported locale list in `ui/src/lib/locales.ts`.
 2. Add locale display label under `translation.locale` in `ui/src/lib/i18n.ts`.
@@ -96,7 +98,7 @@ When adding a locale such as Vietnamese (`vi`):
    - `cd ui && bun run test:run tests/unit/ui/i18n/language-switcher.test.tsx`
 6. Add or update key-parity tests to catch locale drift.
 
-Tracking issue for comprehensive Vietnamese locale:
+Current issue driving the Vietnamese rollout:
 
 - https://github.com/kaitranntt/ccs/issues/659
 

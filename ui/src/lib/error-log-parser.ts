@@ -399,6 +399,7 @@ function getStatusText(code: number): string {
 export function formatRelativeTime(modifiedSeconds: number, locale?: string): string {
   const formatLocale = getFormattingLocale(locale);
   const isZh = formatLocale === 'zh-CN';
+  const isVi = formatLocale === 'vi';
   const now = Date.now();
   const modified = modifiedSeconds * 1000; // Convert to milliseconds
   const diff = now - modified;
@@ -408,10 +409,26 @@ export function formatRelativeTime(modifiedSeconds: number, locale?: string): st
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (seconds < 60) return isZh ? '刚刚' : 'just now';
-  if (minutes < 60) return isZh ? `${minutes} 分钟前` : `${minutes}m ago`;
-  if (hours < 24) return isZh ? `${hours} 小时前` : `${hours}h ago`;
-  if (days < 7) return isZh ? `${days} 天前` : `${days}d ago`;
+  if (seconds < 60) {
+    if (isZh) return '刚刚';
+    if (isVi) return 'vừa xong';
+    return 'just now';
+  }
+  if (minutes < 60) {
+    if (isZh) return `${minutes} 分钟前`;
+    if (isVi) return `${minutes} phút trước`;
+    return `${minutes}m ago`;
+  }
+  if (hours < 24) {
+    if (isZh) return `${hours} 小时前`;
+    if (isVi) return `${hours} giờ trước`;
+    return `${hours}h ago`;
+  }
+  if (days < 7) {
+    if (isZh) return `${days} 天前`;
+    if (isVi) return `${days} ngày trước`;
+    return `${days}d ago`;
+  }
 
   // Format as date for older logs
   const date = new Date(modified);
@@ -441,25 +458,39 @@ export function getStatusColor(code: number): string {
  * Get error type label
  */
 export function getErrorTypeLabel(type: ParsedErrorLog['errorType'], locale?: string): string {
-  const isZh = getFormattingLocale(locale) === 'zh-CN';
-  const labels: Record<string, string> = isZh
-    ? {
-        rate_limit: '限流',
-        auth: '认证错误',
-        not_found: '未找到',
-        server: '服务错误',
-        timeout: '超时',
-        unknown: '错误',
-      }
-    : {
-        rate_limit: 'Rate Limited',
-        auth: 'Auth Error',
-        not_found: 'Not Found',
-        server: 'Server Error',
-        timeout: 'Timeout',
-        unknown: 'Error',
-      };
-  return labels[type] || (isZh ? '错误' : 'Error');
+  const formatLocale = getFormattingLocale(locale);
+  if (formatLocale === 'zh-CN') {
+    const labels: Record<string, string> = {
+      rate_limit: '限流',
+      auth: '认证错误',
+      not_found: '未找到',
+      server: '服务错误',
+      timeout: '超时',
+      unknown: '错误',
+    };
+    return labels[type] || '错误';
+  }
+  if (formatLocale === 'vi') {
+    const labels: Record<string, string> = {
+      rate_limit: 'Quá giới hạn',
+      auth: 'Lỗi xác thực',
+      not_found: 'Không tìm thấy',
+      server: 'Lỗi máy chủ',
+      timeout: 'Hết thời gian chờ',
+      unknown: 'Lỗi',
+    };
+    return labels[type] || 'Lỗi';
+  }
+
+  const labels: Record<string, string> = {
+    rate_limit: 'Rate Limited',
+    auth: 'Auth Error',
+    not_found: 'Not Found',
+    server: 'Server Error',
+    timeout: 'Timeout',
+    unknown: 'Error',
+  };
+  return labels[type] || 'Error';
 }
 
 /**
@@ -486,22 +517,35 @@ export function formatQuotaResetTimestamp(
   locale?: string
 ): string | null {
   if (!timestamp) return null;
-  const isZh = getFormattingLocale(locale) === 'zh-CN';
+  const formatLocale = getFormattingLocale(locale);
+  const isZh = formatLocale === 'zh-CN';
+  const isVi = formatLocale === 'vi';
   try {
     const resetDate = new Date(timestamp);
     const now = new Date();
     const diff = resetDate.getTime() - now.getTime();
-    if (diff <= 0) return isZh ? '现在' : 'now';
+    if (diff <= 0) {
+      if (isZh) return '现在';
+      if (isVi) return 'bây giờ';
+      return 'now';
+    }
 
     const seconds = Math.floor(diff / 1000);
-    if (seconds < 60) return isZh ? `${seconds}秒` : `${seconds}s`;
+    if (seconds < 60) {
+      if (isZh) return `${seconds}秒`;
+      if (isVi) return `${seconds} giây`;
+      return `${seconds}s`;
+    }
     if (seconds < 3600) {
       const mins = Math.floor(seconds / 60);
-      return isZh ? `${mins}分钟` : `${mins}m`;
+      if (isZh) return `${mins}分钟`;
+      if (isVi) return `${mins} phút`;
+      return `${mins}m`;
     }
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     if (isZh) return mins > 0 ? `${hours}小时 ${mins}分钟` : `${hours}小时`;
+    if (isVi) return mins > 0 ? `${hours} giờ ${mins} phút` : `${hours} giờ`;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   } catch {
     return null;
