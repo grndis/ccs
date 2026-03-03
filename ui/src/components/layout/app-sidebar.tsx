@@ -36,10 +36,12 @@ import { useCliproxyUpdateCheck } from '@/hooks/use-cliproxy';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 
 interface SidebarBadge {
-  text: string;
-  icon: string;
+  icon?: string;
+  icons?: string[];
+  text?: string;
 }
 
 interface SidebarChildItem {
@@ -79,7 +81,13 @@ function buildNavGroups(t: (key: string) => string): SidebarGroupDef[] {
           path: '/providers',
           icon: Key,
           label: t('nav.apiProfiles'),
-          badge: { text: 'OpenRouter', icon: '/icons/openrouter.svg' },
+          badge: {
+            icons: [
+              '/icons/openrouter.svg',
+              '/assets/providers/alibabacloud-color.svg',
+              '/icons/ollama.svg',
+            ],
+          },
         },
         {
           path: '/cliproxy',
@@ -229,14 +237,38 @@ export function AppSidebar() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span
-                                  className={`group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                                  className={cn(
+                                    'group-data-[collapsible=icon]:hidden ml-auto flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors',
                                     isRouteActive(item.path)
-                                      ? 'bg-sidebar-accent-foreground/20 text-sidebar-accent-foreground border border-sidebar-accent-foreground/30'
+                                      ? 'bg-white/92 border border-white/65 shadow-sm'
                                       : 'bg-accent/15 text-accent border border-accent/30 group-hover/menu-item:bg-sidebar-accent-foreground/20 group-hover/menu-item:text-sidebar-accent-foreground group-hover/menu-item:border-sidebar-accent-foreground/30'
-                                  }`}
+                                  )}
                                 >
-                                  <img src={item.badge.icon} alt="" className="w-3 h-3" />
-                                  <span className="hidden sm:inline">{item.badge.text}</span>
+                                  {(item.badge.icons && item.badge.icons.length > 0
+                                    ? item.badge.icons
+                                    : item.badge.icon
+                                      ? [item.badge.icon]
+                                      : []
+                                  ).map((iconPath) => (
+                                    <span
+                                      key={iconPath}
+                                      className={cn(
+                                        'inline-flex h-4 w-4 items-center justify-center rounded-[3px] border',
+                                        isRouteActive(item.path)
+                                          ? 'bg-white border-black/10'
+                                          : 'bg-background/80 border-border/40 group-hover/menu-item:bg-white/90'
+                                      )}
+                                    >
+                                      <img
+                                        src={iconPath}
+                                        alt=""
+                                        className="h-3 w-3 object-contain"
+                                      />
+                                    </span>
+                                  ))}
+                                  {item.badge.text && (
+                                    <span className="hidden sm:inline">{item.badge.text}</span>
+                                  )}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent side="right">

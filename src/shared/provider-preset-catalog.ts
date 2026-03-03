@@ -9,6 +9,7 @@ export type PresetCategory = 'recommended' | 'alternative';
 
 export const PROVIDER_PRESET_IDS = [
   'openrouter',
+  'alibaba-coding-plan',
   'ollama',
   'glm',
   'glmt',
@@ -51,6 +52,8 @@ export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api';
  */
 export const PROVIDER_PRESET_ALIASES: Readonly<Record<string, ProviderPresetId>> = Object.freeze({
   kimi: 'km',
+  alibaba: 'alibaba-coding-plan',
+  acp: 'alibaba-coding-plan',
 });
 
 const RAW_PROVIDER_PRESET_DEFINITIONS: readonly ProviderPresetDefinition[] = [
@@ -68,6 +71,21 @@ const RAW_PROVIDER_PRESET_DEFINITIONS: readonly ProviderPresetDefinition[] = [
     badge: '349+ models',
     featured: true,
     icon: '/icons/openrouter.svg',
+  },
+  {
+    id: 'alibaba-coding-plan',
+    name: 'Alibaba Coding Plan',
+    description: 'Alibaba Cloud Coding Plan via Anthropic-compatible endpoint',
+    baseUrl: 'https://coding-intl.dashscope.aliyuncs.com/apps/anthropic',
+    defaultProfileName: 'albb',
+    defaultModel: 'qwen3-coder-plus',
+    apiKeyPlaceholder: 'sk-sp-...',
+    apiKeyHint: 'Get your Coding Plan key from Alibaba Cloud Model Studio',
+    category: 'recommended',
+    requiresApiKey: true,
+    badge: 'Coding Plan',
+    featured: true,
+    icon: '/assets/providers/alibabacloud-color.svg',
   },
   {
     id: 'ollama',
@@ -183,7 +201,7 @@ const RAW_PROVIDER_PRESET_DEFINITIONS: readonly ProviderPresetDefinition[] = [
     name: 'Qwen',
     description: 'Alibaba Cloud - Qwen3 models (256K-1M context, thinking support)',
     baseUrl: 'https://dashscope-intl.aliyuncs.com/apps/anthropic',
-    defaultProfileName: 'qwen',
+    defaultProfileName: 'qwen-api',
     defaultModel: 'qwen3-coder-plus',
     apiKeyPlaceholder: 'sk-...',
     apiKeyHint: 'Get your API key from Alibaba Cloud Model Studio',

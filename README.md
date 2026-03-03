@@ -109,9 +109,13 @@ The dashboard provides visual management for all account types:
 | **Azure Foundry** | API Key | `ccs foundry` | Claude via Microsoft Azure |
 | **Minimax** | API Key | `ccs mm` | M2 series, 1M context |
 | **DeepSeek** | API Key | `ccs deepseek` | V3.2 and R1 reasoning |
-| **Qwen** | API Key | `ccs qwen` | Alibaba Cloud, qwen3-coder |
+| **Qwen (OAuth)** | OAuth | `ccs qwen` | Qwen Code via CLIProxy |
+| **Qwen API** | API Key | `ccs api create --preset qwen` | DashScope Anthropic-compatible API |
+| **Alibaba Coding Plan** | API Key | `ccs api create --preset alibaba-coding-plan` | Model Studio Coding Plan endpoint |
 
 **OpenRouter Integration** (v7.0.0): CCS v7.0.0 adds OpenRouter with interactive model picker, dynamic discovery, and tier mapping (opus/sonnet/haiku). Create via `ccs api create --preset openrouter` or dashboard.
+
+**Alibaba Coding Plan Integration**: Configure via `ccs api create --preset alibaba-coding-plan` (or preset alias `alibaba`) with Coding Plan keys (`sk-sp-...`) and endpoint `https://coding-intl.dashscope.aliyuncs.com/apps/anthropic`.
 
 **Ollama Integration**: Run local open-source models (qwen3-coder, gpt-oss:20b) with full privacy. Use `ccs api create --preset ollama` - requires [Ollama v0.14.0+](https://ollama.com) installed. For cloud models, use `ccs api create --preset ollama-cloud`.
 
@@ -143,9 +147,11 @@ ccs cursor    # Cursor IDE integration (token import + local daemon)
 ccs kiro      # Kiro/AWS CodeWhisperer (OAuth)
 ccs ghcp      # GitHub Copilot (OAuth device flow)
 ccs agy       # Antigravity (OAuth)
+ccs qwen      # Qwen Code (OAuth via CLIProxy)
 ccs ollama    # Local Ollama (no API key needed)
 ccs glm       # GLM (API key)
 ccs km        # Kimi API profile (API key)
+ccs api create --preset alibaba-coding-plan  # Alibaba Coding Plan profile
 ```
 
 ### Droid Alias (`argv[0]` pattern)

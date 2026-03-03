@@ -32,7 +32,7 @@ const resources = {
         system: 'System',
         health: 'Health',
         settings: 'Settings',
-        openrouterTooltip: '349+ models via OpenRouter',
+        openrouterTooltip: 'Featured: OpenRouter + Alibaba Coding Plan + Ollama',
       },
       home: {
         profiles: 'Profiles',
@@ -239,6 +239,21 @@ const resources = {
         getApiKeyAt: 'Get your API key at',
         or: 'or',
         createCustomProfile: 'Create Custom API Profile',
+      },
+      alibabaCodingPlanQuickStart: {
+        recommended: 'Recommended',
+        title: 'Try Alibaba Coding Plan',
+        description:
+          'Use Alibaba Cloud Coding Plan through an Anthropic-compatible endpoint for coding workloads.',
+        featureEndpoint: 'Anthropic-compatible endpoint',
+        featureKeyFormat: 'Dedicated sk-sp API keys',
+        createAlibabaProfile: 'Create Alibaba Coding Plan Profile',
+        readGuideAt: 'Read setup guide at',
+      },
+      alibabaCodingPlanPromo: {
+        title: 'Alibaba Coding Plan',
+        subtitle: 'Model Studio Coding Plan via Anthropic endpoint',
+        add: 'Add',
       },
       credentialHealth: {
         title: 'Credential Health',
@@ -1164,7 +1179,7 @@ const resources = {
         system: '系统',
         health: '健康',
         settings: '设置',
-        openrouterTooltip: '通过 OpenRouter 提供 349+ 模型',
+        openrouterTooltip: '精选：OpenRouter + Alibaba Coding Plan + Ollama',
       },
       home: {
         profiles: '配置',
@@ -1367,6 +1382,20 @@ const resources = {
         getApiKeyAt: '在此获取 API Key：',
         or: '或',
         createCustomProfile: '创建自定义 API 配置',
+      },
+      alibabaCodingPlanQuickStart: {
+        recommended: '推荐',
+        title: '试用阿里云 Coding Plan',
+        description: '通过 Anthropic 兼容端点接入阿里云 Model Studio Coding Plan。',
+        featureEndpoint: 'Anthropic 兼容端点',
+        featureKeyFormat: '专用 sk-sp API Key',
+        createAlibabaProfile: '创建 Alibaba Coding Plan 配置',
+        readGuideAt: '查看配置文档：',
+      },
+      alibabaCodingPlanPromo: {
+        title: 'Alibaba Coding Plan',
+        subtitle: '通过 Anthropic 端点接入 Model Studio Coding Plan',
+        add: '添加',
       },
       credentialHealth: {
         title: '凭据健康状态',
@@ -2254,7 +2283,7 @@ const resources = {
         system: 'Hệ thống',
         health: 'Sức khỏe',
         settings: 'Cài đặt',
-        openrouterTooltip: 'Hơn 349 mô hình qua OpenRouter',
+        openrouterTooltip: 'Nổi bật: OpenRouter + Alibaba Coding Plan + Ollama',
       },
       home: {
         profiles: 'Hồ sơ',
@@ -2463,6 +2492,21 @@ const resources = {
         getApiKeyAt: 'Nhận khóa API của bạn tại',
         or: 'hoặc',
         createCustomProfile: 'Tạo hồ sơ API tùy chỉnh',
+      },
+      alibabaCodingPlanQuickStart: {
+        recommended: 'Đề xuất',
+        title: 'Dùng thử Alibaba Coding Plan',
+        description:
+          'Sử dụng Alibaba Cloud Coding Plan qua endpoint tương thích Anthropic cho tác vụ lập trình.',
+        featureEndpoint: 'Endpoint tương thích Anthropic',
+        featureKeyFormat: 'Khóa API sk-sp chuyên dụng',
+        createAlibabaProfile: 'Tạo hồ sơ Alibaba Coding Plan',
+        readGuideAt: 'Xem hướng dẫn tại',
+      },
+      alibabaCodingPlanPromo: {
+        title: 'Alibaba Coding Plan',
+        subtitle: 'Model Studio Coding Plan qua endpoint Anthropic',
+        add: 'Thêm',
       },
       credentialHealth: {
         title: 'Tình trạng thông tin xác thực',

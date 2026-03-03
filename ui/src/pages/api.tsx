@@ -1,8 +1,3 @@
-/**
- * API Profiles Page - Master-Detail Layout
- * Comprehensive profile management with inline editing
- */
-
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +18,7 @@ import { ProfileCreateDialog } from '@/components/profiles/profile-create-dialog
 import { OpenRouterBanner } from '@/components/profiles/openrouter-banner';
 import { OpenRouterQuickStart } from '@/components/profiles/openrouter-quick-start';
 import { OpenRouterPromoCard } from '@/components/profiles/openrouter-promo-card';
+import { AlibabaCodingPlanPromoCard } from '@/components/profiles/alibaba-coding-plan-promo-card';
 import { useProfiles, useDeleteProfile } from '@/hooks/use-profiles';
 import { useOpenRouterModels } from '@/hooks/use-openrouter-models';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -38,30 +34,22 @@ export function ApiPage() {
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createMode, setCreateMode] = useState<'normal' | 'openrouter'>('normal');
+  const [createMode, setCreateMode] = useState<'normal' | 'openrouter' | 'alibaba-coding-plan'>(
+    'normal'
+  );
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editorHasChanges, setEditorHasChanges] = useState(false);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
 
-  // Prefetch OpenRouter models when page loads (lazy - won't block render)
   useOpenRouterModels();
-
-  // Memoize profiles to maintain stable reference
   const profiles = useMemo(() => data?.profiles || [], [data?.profiles]);
-
-  // Filter profiles by search
   const filteredProfiles = useMemo(
     () => profiles.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())),
     [profiles, searchQuery]
   );
-
-  // selectedProfile is null by default - user must click to select
-  // This allows OpenRouterQuickStart to show as the default right panel
   const selectedProfileData = selectedProfile
     ? profiles.find((p) => p.name === selectedProfile)
     : null;
-
-  // Handle profile deletion
   const handleDelete = (name: string) => {
     deleteMutation.mutate(name, {
       onSuccess: () => {
@@ -73,18 +61,14 @@ export function ApiPage() {
     });
   };
 
-  // Handle create success
   const handleCreateSuccess = (name: string) => {
     setCreateDialogOpen(false);
-    // Use the same unsaved changes check as profile selection
     if (editorHasChanges && selectedProfile !== null) {
       setPendingSwitch(name);
     } else {
       setSelectedProfile(name);
     }
   };
-
-  // Handle profile selection with unsaved changes check
   const handleProfileSelect = (name: string) => {
     if (editorHasChanges && selectedProfile !== name) {
       setPendingSwitch(name);
@@ -95,14 +79,9 @@ export function ApiPage() {
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col">
-      {/* OpenRouter Announcement Banner */}
       <OpenRouterBanner onCreateClick={() => setCreateDialogOpen(true)} />
-
-      {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Left Panel - Profiles List */}
         <div className="w-80 border-r flex flex-col bg-muted/30">
-          {/* Header */}
           <div className="p-4 border-b bg-background">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -120,7 +99,6 @@ export function ApiPage() {
               </Button>
             </div>
 
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -132,7 +110,6 @@ export function ApiPage() {
             </div>
           </div>
 
-          {/* Profile List */}
           <ScrollArea className="flex-1">
             {isLoading ? (
               <div className="p-4 text-sm text-muted-foreground">
@@ -197,7 +174,6 @@ export function ApiPage() {
             )}
           </ScrollArea>
 
-          {/* Footer Stats */}
           {profiles.length > 0 && (
             <div className="p-3 border-t bg-background text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
@@ -212,16 +188,20 @@ export function ApiPage() {
             </div>
           )}
 
-          {/* OpenRouter Promo - always visible */}
           <OpenRouterPromoCard
             onCreateClick={() => {
               setCreateMode('openrouter');
               setCreateDialogOpen(true);
             }}
           />
+          <AlibabaCodingPlanPromoCard
+            onCreateClick={() => {
+              setCreateMode('alibaba-coding-plan');
+              setCreateDialogOpen(true);
+            }}
+          />
         </div>
 
-        {/* Right Panel - Editor or QuickStart */}
         <div className="flex-1 flex flex-col min-w-0">
           {selectedProfileData ? (
             <ProfileEditor
@@ -237,6 +217,10 @@ export function ApiPage() {
                 setCreateMode('openrouter');
                 setCreateDialogOpen(true);
               }}
+              onAlibabaCodingPlanClick={() => {
+                setCreateMode('alibaba-coding-plan');
+                setCreateDialogOpen(true);
+              }}
               onCustomClick={() => {
                 setCreateMode('normal');
                 setCreateDialogOpen(true);
@@ -246,7 +230,6 @@ export function ApiPage() {
         </div>
       </div>
 
-      {/* Create Dialog */}
       <ProfileCreateDialog
         open={isCreateDialogOpen}
         onOpenChange={setCreateDialogOpen}
@@ -254,7 +237,6 @@ export function ApiPage() {
         initialMode={createMode}
       />
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deleteConfirm}
         title={t('apiProfiles.deleteProfileTitle')}
@@ -265,7 +247,6 @@ export function ApiPage() {
         onCancel={() => setDeleteConfirm(null)}
       />
 
-      {/* Unsaved Changes Confirmation */}
       <ConfirmDialog
         open={!!pendingSwitch}
         title={t('apiProfiles.unsavedChangesTitle')}
@@ -286,7 +267,6 @@ export function ApiPage() {
   );
 }
 
-/** Profile list item component */
 function ProfileListItem({
   profile,
   isSelected,
@@ -308,14 +288,12 @@ function ProfileListItem({
       )}
       onClick={onSelect}
     >
-      {/* Status indicator */}
       {profile.configured ? (
         <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
       ) : (
         <AlertCircle className="w-4 h-4 text-yellow-600 shrink-0" />
       )}
 
-      {/* Profile info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="font-medium text-sm truncate">{profile.name}</div>
@@ -335,7 +313,6 @@ function ProfileListItem({
         </div>
       </div>
 
-      {/* Actions */}
       <Button
         variant="ghost"
         size="icon"

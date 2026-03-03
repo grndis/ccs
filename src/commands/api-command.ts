@@ -659,6 +659,8 @@ async function showHelp(): Promise<void> {
   console.log('');
   console.log(`  ${dim('# Quick setup with preset')}`);
   console.log(`  ${color('ccs api create --preset openrouter', 'command')}`);
+  console.log(`  ${color('ccs api create --preset alibaba-coding-plan', 'command')}`);
+  console.log(`  ${color('ccs api create --preset alibaba', 'command')} ${dim('# alias')}`);
   console.log(`  ${color('ccs api create --preset glm', 'command')}`);
   console.log('');
   console.log(`  ${dim('# Create with name')}`);

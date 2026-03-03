@@ -72,7 +72,7 @@ interface ProfileCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (name: string) => void;
-  initialMode?: 'normal' | 'openrouter';
+  initialMode?: 'normal' | 'openrouter' | 'alibaba-coding-plan';
 }
 
 // Common URL mistakes to warn about
@@ -180,7 +180,8 @@ export function ProfileCreateDialog({
         setSelectedPreset(CUSTOM_PRESET_ID);
         applyPresetToForm(null);
       } else {
-        const defaultPreset = getPresetById(DEFAULT_PRESET_ID);
+        const presetId = initialMode === 'openrouter' ? DEFAULT_PRESET_ID : initialMode;
+        const defaultPreset = getPresetById(presetId);
         if (defaultPreset) {
           setSelectedPreset(defaultPreset.id);
           applyPresetToForm(defaultPreset);

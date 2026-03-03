@@ -133,6 +133,10 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs glm', 'GLM 5 (API key required)'],
       ['ccs glmt', 'GLM with thinking mode'],
       ['ccs km', 'Kimi for Coding (API key)'],
+      [
+        'ccs api create --preset alibaba-coding-plan',
+        'Alibaba Coding Plan (Anthropic-compatible API key)',
+      ],
       ['ccs ollama', 'Local Ollama (http://localhost:11434)'],
       ['ccs ollama-cloud', 'Ollama Cloud (API key required)'],
       ['', ''], // Spacer
@@ -184,7 +188,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs gemini', 'Google Gemini (gemini-2.5-pro or 3-pro)'],
       ['ccs codex', 'OpenAI Codex (supports -medium/-high/-xhigh model suffixes)'],
       ['ccs agy', 'Antigravity (Claude/Gemini models)'],
-      ['ccs qwen', 'Qwen Code (qwen3-coder)'],
+      ['ccs qwen', 'Qwen Code OAuth (CLIProxy)'],
       ['ccs kimi', 'Kimi (Moonshot AI K2/K2.5 models)'],
       ['ccs kiro', 'Kiro (AWS CodeWhisperer Claude models)'],
       ['ccs ghcp', 'GitHub Copilot (OAuth via CLIProxy Plus)'],
