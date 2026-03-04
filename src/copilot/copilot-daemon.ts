@@ -289,12 +289,11 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
   try {
     const ownership = verifyProcessOwnership(pid, (commandLine) => {
       const lower = commandLine.toLowerCase();
-      const hasCopilotApiBinary = /(^|[\\/\s])copilot-api(\.cmd|\.exe)?(\s|$)/.test(lower);
+      const hasCopilotApiBinary = /copilot-api(\.cmd|\.exe)?/.test(lower);
       const hasStartCommand = /\bstart\b/.test(lower);
-      const hasExpectedPort =
-        lower.includes(`--port ${configuredPort}`) || lower.includes(`--port=${configuredPort}`);
+      const hasPortArgument = /--port(?:\s+|=)\d+\b/.test(lower);
       // copilot-api is launched as `... copilot-api start --port <n>`
-      return hasCopilotApiBinary && hasStartCommand && hasExpectedPort;
+      return hasCopilotApiBinary && hasStartCommand && hasPortArgument;
     });
     if (ownership === 'not-running') {
       removePidFile();

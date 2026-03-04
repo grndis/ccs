@@ -92,6 +92,25 @@ router.put('/config', (req: Request, res: Response): void => {
       return;
     }
     const payload = updates as Record<string, unknown>;
+    const allowedKeys = new Set([
+      'enabled',
+      'auto_start',
+      'port',
+      'account_type',
+      'rate_limit',
+      'wait_on_limit',
+      'model',
+      'opus_model',
+      'sonnet_model',
+      'haiku_model',
+    ]);
+    const unknownKeys = Object.keys(payload).filter((key) => !allowedKeys.has(key));
+    if (unknownKeys.length > 0) {
+      res.status(400).json({
+        error: `Unknown copilot config field(s): ${unknownKeys.join(', ')}`,
+      });
+      return;
+    }
 
     if ('port' in payload) {
       if (typeof payload.port !== 'number' || !Number.isInteger(payload.port)) {

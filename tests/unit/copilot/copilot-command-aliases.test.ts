@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import {
   COPILOT_SUBCOMMANDS,
   COPILOT_SUBCOMMAND_TOKENS,
-  isLikelyCopilotFlagAlias,
   normalizeCopilotSubcommand,
 } from '../../../src/copilot/constants';
 
@@ -22,13 +21,6 @@ describe('copilot command aliases', () => {
   it('returns unknown tokens unchanged', () => {
     expect(normalizeCopilotSubcommand('--unknown')).toBe('--unknown');
     expect(normalizeCopilotSubcommand('unknown')).toBe('unknown');
-  });
-
-  it('detects likely mistyped command aliases for entrypoint routing', () => {
-    expect(isLikelyCopilotFlagAlias('--statu')).toBe(true);
-    expect(isLikelyCopilotFlagAlias('--enabl')).toBe(true);
-    expect(isLikelyCopilotFlagAlias('--print')).toBe(false);
-    expect(isLikelyCopilotFlagAlias('--')).toBe(false);
   });
 
   it('exposes complete routing token list for ccs entrypoint', () => {

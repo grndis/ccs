@@ -30,7 +30,7 @@ import { getGlobalEnvConfig } from './config/unified-config-loader';
 import { ensureProfileHooks as ensureImageAnalyzerHooks } from './utils/hooks/image-analyzer-profile-hook-injector';
 import { getImageAnalysisHookEnv } from './utils/hooks';
 import { fail, info, warn } from './utils/ui';
-import { isCopilotSubcommandToken, isLikelyCopilotFlagAlias } from './copilot/constants';
+import { isCopilotSubcommandToken } from './copilot/constants';
 
 // Import centralized error handling
 import { handleError, runCleanup } from './errors';
@@ -573,13 +573,10 @@ async function main(): Promise<void> {
   }
 
   // Special case: copilot command (GitHub Copilot integration)
-  // Route known subcommands and likely mistyped aliases (`--statu`) to command handler.
-  // Non-command Claude args still pass through profile flow.
+  // Route known subcommands to command handler, keep all other args as profile passthrough.
   if (firstArg === 'copilot' && args.length > 1) {
     const copilotToken = args[1];
-    const shouldRouteToCopilotCommand =
-      isCopilotSubcommandToken(copilotToken) ||
-      (args.length === 2 && isLikelyCopilotFlagAlias(copilotToken));
+    const shouldRouteToCopilotCommand = isCopilotSubcommandToken(copilotToken);
 
     if (shouldRouteToCopilotCommand) {
       const { handleCopilotCommand } = await import('./commands/copilot-command');
