@@ -45,7 +45,12 @@ import { isHeadlessEnvironment, killProcessOnPort, showStep } from './environmen
 import { getProviderTokenDir, isAuthenticated, registerAccountFromToken } from './token-manager';
 import { executeOAuthProcess } from './oauth-process';
 import { importKiroToken } from './kiro-import';
-import { getProxyTarget, buildProxyUrl, buildManagementHeaders } from '../proxy-target-resolver';
+import {
+  getProxyTarget,
+  buildProxyUrl,
+  buildManagementHeaders,
+  type ProxyTarget,
+} from '../proxy-target-resolver';
 import {
   checkNewAccountConflict,
   warnNewAccountConflict,
@@ -53,6 +58,86 @@ import {
   warnPossible403Ban,
 } from '../account-safety';
 import { ensureCliAntigravityResponsibility } from '../antigravity-responsibility';
+
+interface PasteCallbackStartData {
+  url?: string;
+  auth_url?: string;
+  state?: string;
+  status?: string;
+}
+
+const PASTE_CALLBACK_AUTH_URL_POLL_INTERVAL_MS = 3000;
+
+export async function requestPasteCallbackStart(
+  provider: CLIProxyProvider,
+  target: ProxyTarget
+): Promise<PasteCallbackStartData> {
+  const startPath = getPasteCallbackStartPath(provider);
+  const response = await fetch(buildProxyUrl(target, startPath), {
+    ...(provider === 'kiro' ? { method: 'POST' } : {}),
+    headers:
+      provider === 'kiro'
+        ? buildManagementHeaders(target, { 'Content-Type': 'application/json' })
+        : buildManagementHeaders(target),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OAuth start failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as PasteCallbackStartData;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function resolvePasteCallbackAuthUrl(
+  target: ProxyTarget,
+  startData: PasteCallbackStartData,
+  timeoutMs: number,
+  pollIntervalMs: number = PASTE_CALLBACK_AUTH_URL_POLL_INTERVAL_MS
+): Promise<string | null> {
+  const authUrl = startData.url || startData.auth_url;
+  if (authUrl) {
+    return authUrl;
+  }
+
+  const state = startData.state;
+  if (!state) {
+    return null;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(
+      buildProxyUrl(target, `/v0/management/get-auth-status?state=${encodeURIComponent(state)}`),
+      { headers: buildManagementHeaders(target) }
+    );
+
+    if (response.ok) {
+      const statusData = (await response.json()) as PasteCallbackStartData;
+      const polledAuthUrl = statusData.url || statusData.auth_url;
+
+      if (polledAuthUrl) {
+        return polledAuthUrl;
+      }
+
+      if (statusData.status === 'error' || statusData.status === 'device_code') {
+        return null;
+      }
+    }
+
+    if (Date.now() + pollIntervalMs >= deadline) {
+      break;
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  return null;
+}
 
 /**
  * Prompt user to add another account
@@ -279,28 +364,17 @@ async function handlePasteCallbackMode(
     // Request auth URL from CLIProxyAPI.
     // Kiro keeps its legacy start route because CLI auth methods do not share the generic
     // management auth-url contract used by providers like Claude.
-    const startPath = getPasteCallbackStartPath(provider);
-    const startResponse = await fetch(buildProxyUrl(target, startPath), {
-      ...(provider === 'kiro' ? { method: 'POST' } : {}),
-      headers:
-        provider === 'kiro'
-          ? buildManagementHeaders(target, { 'Content-Type': 'application/json' })
-          : buildManagementHeaders(target),
-    });
-
-    if (!startResponse.ok) {
-      const startError = `OAuth start failed with status ${startResponse.status}`;
+    let startData: PasteCallbackStartData;
+    try {
+      startData = await requestPasteCallbackStart(provider, target);
+    } catch (error) {
+      const startError = (error as Error).message;
       console.log(fail('Failed to start OAuth flow'));
       warnPossible403Ban(provider, startError);
       return null;
     }
 
-    const startData = (await startResponse.json()) as {
-      url?: string;
-      auth_url?: string;
-      status?: string;
-    };
-    const authUrl = startData.url || startData.auth_url;
+    const authUrl = await resolvePasteCallbackAuthUrl(target, startData, OAUTH_STATE_TIMEOUT_MS);
 
     if (!authUrl) {
       console.log(fail('No authorization URL received'));
