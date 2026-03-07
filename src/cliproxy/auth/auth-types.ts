@@ -258,6 +258,14 @@ export function getManagementAuthUrlPath(provider: CLIProxyProvider): string {
   return `/v0/management/${authUrlProvider}-auth-url?is_webui=true`;
 }
 
+export function getPasteCallbackStartPath(provider: CLIProxyProvider): string {
+  // Kiro CLI auth methods still use the legacy start route.
+  if (provider === 'kiro') {
+    return `/oauth/${provider}/start`;
+  }
+  return getManagementAuthUrlPath(provider);
+}
+
 export function getManagementOAuthCallbackPath(): string {
   return '/v0/management/oauth-callback';
 }

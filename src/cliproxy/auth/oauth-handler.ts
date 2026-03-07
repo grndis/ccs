@@ -37,7 +37,7 @@ import {
   getOAuthConfig,
   ProviderOAuthConfig,
   CLIPROXY_CALLBACK_PROVIDER_MAP,
-  getManagementAuthUrlPath,
+  getPasteCallbackStartPath,
   getManagementOAuthCallbackPath,
   normalizeKiroAuthMethod,
 } from './auth-types';
@@ -276,10 +276,16 @@ async function handlePasteCallbackMode(
   console.log(info(`Starting ${oauthConfig.displayName} OAuth (paste-callback mode)...`));
 
   try {
-    // Request auth URL from CLIProxyAPI
-    // Use management auth-url endpoint to match CLIProxyAPI route contract.
-    const startResponse = await fetch(buildProxyUrl(target, getManagementAuthUrlPath(provider)), {
-      headers: buildManagementHeaders(target),
+    // Request auth URL from CLIProxyAPI.
+    // Kiro keeps its legacy start route because CLI auth methods do not share the generic
+    // management auth-url contract used by providers like Claude.
+    const startPath = getPasteCallbackStartPath(provider);
+    const startResponse = await fetch(buildProxyUrl(target, startPath), {
+      ...(provider === 'kiro' ? { method: 'POST' } : {}),
+      headers:
+        provider === 'kiro'
+          ? buildManagementHeaders(target, { 'Content-Type': 'application/json' })
+          : buildManagementHeaders(target),
     });
 
     if (!startResponse.ok) {
