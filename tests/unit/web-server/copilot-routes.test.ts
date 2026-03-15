@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Server } from 'http';
+import { normalizeCopilotConfig } from '../../../src/copilot/copilot-model-normalizer';
+import { DEFAULT_COPILOT_CONFIG } from '../../../src/config/unified-config-types';
 
 let server: Server;
 let baseUrl = '';
@@ -139,11 +141,9 @@ afterAll(async () => {
 });
 
 describe('Copilot Routes', () => {
-  it('GET /api/copilot/config normalizes and persists stale raptor-mini config', async () => {
+  it('GET /api/copilot/config returns normalized values and warnings without persisting', async () => {
     seedCopilotConfig({
-      model: 'raptor-mini',
-      opus_model: 'raptor-mini',
-      sonnet_model: 'raptor-mini',
+      model: 'claude-sonnet-4.5',
       haiku_model: 'raptor-mini',
     });
 
@@ -152,30 +152,26 @@ describe('Copilot Routes', () => {
 
     const body = (await response.json()) as {
       model: string;
+      warnings?: Array<{ tier: string; message: string }>;
       opus_model?: string;
       sonnet_model?: string;
       haiku_model?: string;
     };
-    expect(body.model).toBe('gpt-4.1');
-    expect(body.opus_model).toBeUndefined();
-    expect(body.sonnet_model).toBeUndefined();
+    expect(body.model).toBe('claude-sonnet-4.5');
     expect(body.haiku_model).toBeUndefined();
+    expect(body.warnings ?? []).toHaveLength(0);
 
     const persisted = loadOrCreateUnifiedConfig().copilot;
-    expect(persisted?.model).toBe('gpt-4.1');
-    expect(persisted?.opus_model).toBeUndefined();
-    expect(persisted?.sonnet_model).toBeUndefined();
+    expect(persisted?.model).toBe('claude-sonnet-4.5');
     expect(persisted?.haiku_model).toBeUndefined();
   });
 
-  it('PUT /api/copilot/config normalizes stale raptor-mini payloads before save', async () => {
+  it('PUT /api/copilot/config normalizes deprecated overrides before save', async () => {
     const response = await fetch(`${baseUrl}/api/copilot/config`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: 'raptor-mini',
-        opus_model: 'raptor-mini',
-        sonnet_model: 'raptor-mini',
+        model: 'claude-sonnet-4.5',
         haiku_model: 'raptor-mini',
       }),
     });
@@ -183,6 +179,7 @@ describe('Copilot Routes', () => {
 
     const body = (await response.json()) as {
       success: boolean;
+      warnings?: Array<{ tier: string; replacement: string }>;
       copilot: {
         model: string;
         opus_model?: string;
@@ -191,30 +188,30 @@ describe('Copilot Routes', () => {
       };
     };
     expect(body.success).toBe(true);
-    expect(body.copilot.model).toBe('gpt-4.1');
-    expect(body.copilot.opus_model).toBe('gpt-4.1');
-    expect(body.copilot.sonnet_model).toBe('gpt-4.1');
-    expect(body.copilot.haiku_model).toBe('gpt-4.1');
+    expect(body.copilot.model).toBe('claude-sonnet-4.5');
+    expect(body.copilot.haiku_model).toBe('claude-sonnet-4.5');
+    expect(body.warnings?.[0]?.tier).toBe('haiku');
+    expect(body.warnings?.[0]?.replacement).toBe('claude-sonnet-4.5');
 
     const persisted = loadOrCreateUnifiedConfig().copilot;
-    expect(persisted?.model).toBe('gpt-4.1');
-    expect(persisted?.opus_model).toBeUndefined();
-    expect(persisted?.sonnet_model).toBeUndefined();
-    expect(persisted?.haiku_model).toBeUndefined();
+    expect(persisted?.model).toBe('claude-sonnet-4.5');
+    expect(
+      normalizeCopilotConfig(persisted ?? { ...DEFAULT_COPILOT_CONFIG }).haiku_model
+    ).toBeUndefined();
+    expect(persisted?.haiku_model).not.toBe('raptor-mini');
   });
 
-  it('GET /api/copilot/settings/raw normalizes and persists stale raw settings', async () => {
-    seedCopilotConfig({ model: 'raptor-mini' });
+  it('GET /api/copilot/settings/raw keeps stored JSON untouched and returns effective warnings', async () => {
+    seedCopilotConfig({ model: 'claude-sonnet-4.5' });
     writeCopilotSettings({
       env: {
         ANTHROPIC_BASE_URL: 'http://127.0.0.1:4141',
         ANTHROPIC_AUTH_TOKEN: 'copilot-managed',
-        ANTHROPIC_MODEL: 'raptor-mini',
-        ANTHROPIC_DEFAULT_OPUS_MODEL: 'raptor-mini',
-        ANTHROPIC_DEFAULT_SONNET_MODEL: 'raptor-mini',
         ANTHROPIC_DEFAULT_HAIKU_MODEL: 'raptor-mini',
+        ANTHROPIC_SMALL_FAST_MODEL: 'raptor-mini',
       },
     });
+    const beforeContent = fs.readFileSync(getCopilotSettingsPath(), 'utf-8');
 
     const response = await fetch(`${baseUrl}/api/copilot/settings/raw`);
     expect(response.status).toBe(200);
@@ -223,20 +220,21 @@ describe('Copilot Routes', () => {
       settings: {
         env: Record<string, string>;
       };
+      effectiveSettings: {
+        env: Record<string, string>;
+      };
       exists: boolean;
+      warnings?: Array<{ tier: string }>;
     };
     expect(body.exists).toBe(true);
-    expect(body.settings.env.ANTHROPIC_MODEL).toBe('gpt-4.1');
-    expect(body.settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('gpt-4.1');
-    expect(body.settings.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('gpt-4.1');
-    expect(body.settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('gpt-4.1');
+    expect(body.settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('raptor-mini');
+    expect(body.settings.env.ANTHROPIC_SMALL_FAST_MODEL).toBe('raptor-mini');
+    expect(body.effectiveSettings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4.5');
+    expect(body.effectiveSettings.env.ANTHROPIC_SMALL_FAST_MODEL).toBe('claude-sonnet-4.5');
+    expect(body.warnings?.map((warning) => warning.tier)).toEqual(['haiku']);
 
-    const persistedSettings = JSON.parse(fs.readFileSync(getCopilotSettingsPath(), 'utf-8')) as {
-      env: Record<string, string>;
-    };
-    expect(persistedSettings.env.ANTHROPIC_MODEL).toBe('gpt-4.1');
-    expect(persistedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('gpt-4.1');
-    expect(loadOrCreateUnifiedConfig().copilot?.model).toBe('gpt-4.1');
+    expect(fs.readFileSync(getCopilotSettingsPath(), 'utf-8')).toBe(beforeContent);
+    expect(loadOrCreateUnifiedConfig().copilot?.model).toBe('claude-sonnet-4.5');
   });
 
   it('PUT /api/copilot/settings/raw normalizes stale models before save and syncs unified config', async () => {
@@ -248,32 +246,52 @@ describe('Copilot Routes', () => {
           env: {
             ANTHROPIC_BASE_URL: 'http://127.0.0.1:4141',
             ANTHROPIC_AUTH_TOKEN: 'copilot-managed',
-            ANTHROPIC_MODEL: 'raptor-mini',
-            ANTHROPIC_DEFAULT_OPUS_MODEL: 'raptor-mini',
-            ANTHROPIC_DEFAULT_SONNET_MODEL: 'raptor-mini',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'raptor-mini',
+            ANTHROPIC_MODEL: 'claude-sonnet-4.5',
+            ANTHROPIC_SMALL_FAST_MODEL: 'raptor-mini',
           },
         },
       }),
     });
     expect(response.status).toBe(200);
 
+    const body = (await response.json()) as {
+      success: boolean;
+      warnings?: Array<{ tier: string; replacement: string }>;
+    };
+    expect(body.success).toBe(true);
+    expect(body.warnings?.[0]?.tier).toBe('haiku');
+    expect(body.warnings?.[0]?.replacement).toBe('claude-sonnet-4.5');
+
     const persistedSettings = JSON.parse(fs.readFileSync(getCopilotSettingsPath(), 'utf-8')) as {
       env: Record<string, string>;
     };
-    expect(persistedSettings.env.ANTHROPIC_MODEL).toBe('gpt-4.1');
-    expect(persistedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('gpt-4.1');
-    expect(persistedSettings.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('gpt-4.1');
-    expect(persistedSettings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('gpt-4.1');
+    expect(persistedSettings.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4.5');
+    expect(persistedSettings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4.5');
+    expect(persistedSettings.env.ANTHROPIC_SMALL_FAST_MODEL).toBe('claude-sonnet-4.5');
 
     const persistedConfig = loadOrCreateUnifiedConfig().copilot;
-    expect(persistedConfig?.model).toBe('gpt-4.1');
-    expect(persistedConfig?.opus_model).toBeUndefined();
-    expect(persistedConfig?.sonnet_model).toBeUndefined();
-    expect(persistedConfig?.haiku_model).toBeUndefined();
+    expect(persistedConfig?.model).toBe('claude-sonnet-4.5');
+    expect(
+      normalizeCopilotConfig(persistedConfig ?? { ...DEFAULT_COPILOT_CONFIG }).haiku_model
+    ).toBeUndefined();
+    expect(persistedConfig?.haiku_model).not.toBe('raptor-mini');
   });
 
-  it('GET /api/copilot/models reports normalized current model for stale config', async () => {
+  it('PUT /api/copilot/settings/raw rejects non-object settings payloads', async () => {
+    const response = await fetch(`${baseUrl}/api/copilot/settings/raw`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        settings: ['invalid'],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toBe('settings must be a JSON object');
+  });
+
+  it('GET /api/copilot/models reports normalized current model without persisting', async () => {
     seedCopilotConfig({ model: 'raptor-mini' });
 
     const response = await fetch(`${baseUrl}/api/copilot/models`);
@@ -281,11 +299,13 @@ describe('Copilot Routes', () => {
 
     const body = (await response.json()) as {
       current: string;
+      warnings?: Array<{ tier: string }>;
       models: Array<{ id: string; isCurrent?: boolean }>;
     };
 
     expect(body.current).toBe('gpt-4.1');
     expect(body.models.some((model) => model.id === 'gpt-4.1' && model.isCurrent)).toBe(true);
-    expect(loadOrCreateUnifiedConfig().copilot?.model).toBe('gpt-4.1');
+    expect(body.warnings?.map((warning) => warning.tier)).toEqual(['default']);
+    expect(loadOrCreateUnifiedConfig().copilot?.model).toBe('raptor-mini');
   });
 });

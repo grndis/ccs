@@ -18,9 +18,12 @@ import {
   getCopilotApiInfo,
   getInstalledVersion as getCopilotInstalledVersion,
 } from '../../copilot';
-import { normalizeCopilotConfig } from '../../copilot/copilot-model-normalizer';
+import {
+  normalizeCopilotConfigWithWarnings,
+  type CopilotNormalizationWarning,
+} from '../../copilot/copilot-model-normalizer';
 import { DEFAULT_COPILOT_CONFIG, type CopilotConfig } from '../../config/unified-config-types';
-import { loadOrCreateUnifiedConfig, saveUnifiedConfig } from '../../config/unified-config-loader';
+import { loadOrCreateUnifiedConfig, mutateUnifiedConfig } from '../../config/unified-config-loader';
 import copilotSettingsRoutes from './copilot-settings-routes';
 
 const router = Router();
@@ -40,22 +43,12 @@ function parseOptionalModel(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function persistNormalizedCopilotConfig(
-  config: ReturnType<typeof loadOrCreateUnifiedConfig>,
-  copilotConfig: CopilotConfig
-): void {
-  const current = JSON.stringify(config.copilot ?? DEFAULT_COPILOT_CONFIG);
-  const next = JSON.stringify(copilotConfig);
-  if (current === next) return;
-  config.copilot = copilotConfig;
-  saveUnifiedConfig(config);
-}
-
-function loadNormalizedCopilotConfig(): CopilotConfig {
+function loadEffectiveCopilotConfig(): {
+  config: CopilotConfig;
+  warnings: CopilotNormalizationWarning[];
+} {
   const config = loadOrCreateUnifiedConfig();
-  const copilotConfig = normalizeCopilotConfig(config.copilot ?? DEFAULT_COPILOT_CONFIG);
-  persistNormalizedCopilotConfig(config, copilotConfig);
-  return copilotConfig;
+  return normalizeCopilotConfigWithWarnings(config.copilot ?? DEFAULT_COPILOT_CONFIG);
 }
 
 /**
@@ -63,7 +56,7 @@ function loadNormalizedCopilotConfig(): CopilotConfig {
  */
 router.get('/status', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const copilotConfig = loadNormalizedCopilotConfig();
+    const { config: copilotConfig, warnings } = loadEffectiveCopilotConfig();
     const status = await getCopilotStatus(copilotConfig);
     const installed = isCopilotApiInstalled();
     const version = getCopilotInstalledVersion();
@@ -80,6 +73,7 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
       auto_start: copilotConfig.auto_start,
       rate_limit: copilotConfig.rate_limit,
       wait_on_limit: copilotConfig.wait_on_limit,
+      warnings,
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -91,7 +85,8 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
  */
 router.get('/config', (_req: Request, res: Response): void => {
   try {
-    res.json(loadNormalizedCopilotConfig());
+    const { config: copilotConfig, warnings } = loadEffectiveCopilotConfig();
+    res.json({ ...copilotConfig, warnings });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -213,47 +208,51 @@ router.put('/config', (req: Request, res: Response): void => {
       return;
     }
 
-    const config = loadOrCreateUnifiedConfig();
+    let nextCopilotConfig: CopilotConfig = { ...DEFAULT_COPILOT_CONFIG };
+    let warnings: CopilotNormalizationWarning[] = [];
 
-    // Merge updates with existing config
-    const nextCopilotConfig = normalizeCopilotConfig({
-      enabled:
-        (payload.enabled as boolean) ?? config.copilot?.enabled ?? DEFAULT_COPILOT_CONFIG.enabled,
-      auto_start:
-        (payload.auto_start as boolean) ??
-        config.copilot?.auto_start ??
-        DEFAULT_COPILOT_CONFIG.auto_start,
-      port: (payload.port as number) ?? config.copilot?.port ?? DEFAULT_COPILOT_CONFIG.port,
-      account_type:
-        (payload.account_type as 'individual' | 'business' | 'enterprise') ??
-        config.copilot?.account_type ??
-        DEFAULT_COPILOT_CONFIG.account_type,
-      rate_limit:
-        payload.rate_limit !== undefined
-          ? (payload.rate_limit as number | null)
-          : (config.copilot?.rate_limit ?? DEFAULT_COPILOT_CONFIG.rate_limit),
-      wait_on_limit:
-        (payload.wait_on_limit as boolean) ??
-        config.copilot?.wait_on_limit ??
-        DEFAULT_COPILOT_CONFIG.wait_on_limit,
-      model: normalizedModel ?? config.copilot?.model ?? DEFAULT_COPILOT_CONFIG.model,
-      opus_model:
-        'opus_model' in payload
-          ? parseOptionalModel(payload.opus_model)
-          : config.copilot?.opus_model,
-      sonnet_model:
-        'sonnet_model' in payload
-          ? parseOptionalModel(payload.sonnet_model)
-          : config.copilot?.sonnet_model,
-      haiku_model:
-        'haiku_model' in payload
-          ? parseOptionalModel(payload.haiku_model)
-          : config.copilot?.haiku_model,
+    mutateUnifiedConfig((config) => {
+      const currentConfig = config.copilot ?? DEFAULT_COPILOT_CONFIG;
+      const result = normalizeCopilotConfigWithWarnings({
+        enabled:
+          (payload.enabled as boolean) ?? currentConfig.enabled ?? DEFAULT_COPILOT_CONFIG.enabled,
+        auto_start:
+          (payload.auto_start as boolean) ??
+          currentConfig.auto_start ??
+          DEFAULT_COPILOT_CONFIG.auto_start,
+        port: (payload.port as number) ?? currentConfig.port ?? DEFAULT_COPILOT_CONFIG.port,
+        account_type:
+          (payload.account_type as 'individual' | 'business' | 'enterprise') ??
+          currentConfig.account_type ??
+          DEFAULT_COPILOT_CONFIG.account_type,
+        rate_limit:
+          payload.rate_limit !== undefined
+            ? (payload.rate_limit as number | null)
+            : (currentConfig.rate_limit ?? DEFAULT_COPILOT_CONFIG.rate_limit),
+        wait_on_limit:
+          (payload.wait_on_limit as boolean) ??
+          currentConfig.wait_on_limit ??
+          DEFAULT_COPILOT_CONFIG.wait_on_limit,
+        model: normalizedModel ?? currentConfig.model ?? DEFAULT_COPILOT_CONFIG.model,
+        opus_model:
+          'opus_model' in payload
+            ? parseOptionalModel(payload.opus_model)
+            : currentConfig.opus_model,
+        sonnet_model:
+          'sonnet_model' in payload
+            ? parseOptionalModel(payload.sonnet_model)
+            : currentConfig.sonnet_model,
+        haiku_model:
+          'haiku_model' in payload
+            ? parseOptionalModel(payload.haiku_model)
+            : currentConfig.haiku_model,
+      });
+      config.copilot = result.config;
+      nextCopilotConfig = result.config;
+      warnings = result.warnings;
     });
 
-    config.copilot = nextCopilotConfig;
-    saveUnifiedConfig(config);
-    res.json({ success: true, copilot: nextCopilotConfig });
+    res.json({ success: true, copilot: nextCopilotConfig, warnings });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -288,7 +287,7 @@ router.get('/auth/status', async (_req: Request, res: Response): Promise<void> =
  */
 router.get('/models', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const copilotConfig = loadNormalizedCopilotConfig();
+    const { config: copilotConfig, warnings } = loadEffectiveCopilotConfig();
     const port = copilotConfig.port;
     const currentModel = copilotConfig.model;
     const models = await getCopilotModels(port);
@@ -298,7 +297,7 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
       isCurrent: m.id === currentModel,
     }));
 
-    res.json({ models: modelsWithCurrent, current: currentModel });
+    res.json({ models: modelsWithCurrent, current: currentModel, warnings });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -309,8 +308,8 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
  */
 router.get('/usage', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const config = loadOrCreateUnifiedConfig();
-    const port = config.copilot?.port ?? DEFAULT_COPILOT_CONFIG.port;
+    const { config: copilotConfig, warnings } = loadEffectiveCopilotConfig();
+    const port = copilotConfig.port;
     const daemonRunning = await isDaemonRunning(port);
 
     if (!daemonRunning) {
@@ -330,7 +329,7 @@ router.get('/usage', async (_req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.json(usage);
+    res.json({ ...usage, warnings });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -341,10 +340,9 @@ router.get('/usage', async (_req: Request, res: Response): Promise<void> => {
  */
 router.post('/daemon/start', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const config = loadOrCreateUnifiedConfig();
-    const copilotConfig = config.copilot ?? DEFAULT_COPILOT_CONFIG;
+    const { config: copilotConfig, warnings } = loadEffectiveCopilotConfig();
     const result = await startCopilotDaemon(copilotConfig);
-    res.json(result);
+    res.json({ ...result, warnings });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

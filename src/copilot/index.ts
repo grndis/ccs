@@ -48,8 +48,10 @@ export {
 export {
   DEPRECATED_COPILOT_MODEL_IDS,
   normalizeCopilotConfig,
+  normalizeCopilotConfigWithWarnings,
   normalizeCopilotModelId,
   normalizeCopilotSettings,
+  normalizeCopilotSettingsWithWarnings,
 } from './copilot-model-normalizer';
 
 // Usage

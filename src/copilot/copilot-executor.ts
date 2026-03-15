@@ -11,9 +11,9 @@ import { getGlobalEnvConfig } from '../config/unified-config-loader';
 import { checkAuthStatus, isCopilotApiInstalled } from './copilot-auth';
 import { isDaemonRunning, startDaemon } from './copilot-daemon';
 import { ensureCopilotApi } from './copilot-package-manager';
-import { normalizeCopilotConfig } from './copilot-model-normalizer';
+import { normalizeCopilotConfigWithWarnings } from './copilot-model-normalizer';
 import { CopilotStatus } from './types';
-import { fail, info, ok } from '../utils/ui';
+import { fail, info, ok, warn } from '../utils/ui';
 import { getWebSearchHookEnv } from '../utils/websearch-manager';
 import { getImageAnalysisHookEnv } from '../utils/hooks';
 import { stripClaudeCodeEnv } from '../utils/shell-executor';
@@ -22,7 +22,7 @@ import { stripClaudeCodeEnv } from '../utils/shell-executor';
  * Get full copilot status (auth + daemon).
  */
 export async function getCopilotStatus(config: CopilotConfig): Promise<CopilotStatus> {
-  const normalizedConfig = normalizeCopilotConfig(config);
+  const normalizedConfig = normalizeCopilotConfigWithWarnings(config).config;
   const [auth, daemonRunning] = await Promise.all([
     checkAuthStatus(),
     isDaemonRunning(normalizedConfig.port),
@@ -45,7 +45,7 @@ export function generateCopilotEnv(
   config: CopilotConfig,
   claudeConfigDir?: string
 ): Record<string, string> {
-  const normalizedConfig = normalizeCopilotConfig(config);
+  const normalizedConfig = normalizeCopilotConfigWithWarnings(config).config;
 
   // Use mapped models if configured, otherwise fall back to default model
   const opusModel = normalizedConfig.opus_model || normalizedConfig.model;
@@ -83,7 +83,15 @@ export async function executeCopilotProfile(
   claudeConfigDir?: string,
   claudeCliPath: string = 'claude'
 ): Promise<number> {
-  const normalizedConfig = normalizeCopilotConfig(config);
+  const { config: normalizedConfig, warnings } = normalizeCopilotConfigWithWarnings(config);
+
+  if (warnings.length > 0) {
+    warnings.forEach(({ message }) => console.log(warn(message)));
+    console.log(
+      warn('Run `ccs config` and save the Copilot section to persist these replacements.')
+    );
+    console.log('');
+  }
 
   // Ensure copilot-api is installed (auto-install if missing, auto-update if outdated)
   try {

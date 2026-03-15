@@ -3,8 +3,10 @@ import { DEFAULT_COPILOT_CONFIG } from '../../../src/config/unified-config-types
 import {
   DEPRECATED_COPILOT_MODEL_IDS,
   normalizeCopilotConfig,
+  normalizeCopilotConfigWithWarnings,
   normalizeCopilotModelId,
   normalizeCopilotSettings,
+  normalizeCopilotSettingsWithWarnings,
 } from '../../../src/copilot/copilot-model-normalizer';
 
 describe('copilot-model-normalizer', () => {
@@ -16,19 +18,18 @@ describe('copilot-model-normalizer', () => {
     expect(normalizeCopilotModelId('raptor-mini')).toBe(DEFAULT_COPILOT_CONFIG.model);
   });
 
-  it('normalizes Copilot config tier mappings', () => {
-    const normalized = normalizeCopilotConfig({
+  it('falls back deprecated tier overrides to the normalized base model', () => {
+    const result = normalizeCopilotConfigWithWarnings({
       ...DEFAULT_COPILOT_CONFIG,
-      model: 'raptor-mini',
-      opus_model: 'raptor-mini',
-      sonnet_model: 'raptor-mini',
+      model: 'claude-sonnet-4.5',
       haiku_model: 'raptor-mini',
     });
 
-    expect(normalized.model).toBe('gpt-4.1');
-    expect(normalized.opus_model).toBe('gpt-4.1');
-    expect(normalized.sonnet_model).toBe('gpt-4.1');
-    expect(normalized.haiku_model).toBe('gpt-4.1');
+    expect(result.config.model).toBe('claude-sonnet-4.5');
+    expect(result.config.haiku_model).toBe('claude-sonnet-4.5');
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]?.message).toContain("'raptor-mini'");
+    expect(result.warnings[0]?.message).toContain("'claude-sonnet-4.5'");
   });
 
   it('normalizes raw settings payloads without dropping unrelated env keys', () => {
@@ -54,5 +55,26 @@ describe('copilot-model-normalizer', () => {
     expect(normalized.env?.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('gpt-4.1');
     expect(normalized.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('gpt-4.1');
     expect(normalized.env?.EXTRA_FLAG).toBe('keep-me');
+  });
+
+  it('keeps small-fast and haiku env settings in lockstep', () => {
+    const result = normalizeCopilotSettingsWithWarnings(
+      {
+        env: {
+          ANTHROPIC_MODEL: 'claude-sonnet-4.5',
+          ANTHROPIC_SMALL_FAST_MODEL: 'raptor-mini',
+        },
+      },
+      {
+        ...DEFAULT_COPILOT_CONFIG,
+        model: 'claude-sonnet-4.5',
+      }
+    );
+
+    expect(result.settings.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4.5');
+    expect(result.settings.env?.ANTHROPIC_SMALL_FAST_MODEL).toBe('claude-sonnet-4.5');
+    expect(result.effectiveConfig.haiku_model).toBe('claude-sonnet-4.5');
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]?.tier).toBe('haiku');
   });
 });

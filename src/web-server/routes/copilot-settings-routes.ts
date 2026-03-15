@@ -6,12 +6,12 @@ import { Router, Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  normalizeCopilotConfig,
-  normalizeCopilotSettings,
+  normalizeCopilotConfigWithWarnings,
+  normalizeCopilotSettingsWithWarnings,
 } from '../../copilot/copilot-model-normalizer';
-import { getCcsDir } from '../../utils/config-manager';
 import { DEFAULT_COPILOT_CONFIG, type CopilotConfig } from '../../config/unified-config-types';
-import { loadOrCreateUnifiedConfig, saveUnifiedConfig } from '../../config/unified-config-loader';
+import { loadOrCreateUnifiedConfig, mutateUnifiedConfig } from '../../config/unified-config-loader';
+import { getCcsDir } from '../../utils/config-manager';
 
 const router = Router();
 
@@ -26,20 +26,40 @@ function writeSettingsFile(
 ): void {
   const nextContent = serializeSettings(settings);
   if (previousContent === nextContent) return;
-  const tempPath = `${settingsPath}.tmp`;
+  const tempPath = `${settingsPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   fs.writeFileSync(tempPath, nextContent);
   fs.renameSync(tempPath, settingsPath);
 }
 
-function persistNormalizedCopilotConfig(
-  config: ReturnType<typeof loadOrCreateUnifiedConfig>,
-  copilotConfig: CopilotConfig
+function restoreSettingsFile(
+  settingsPath: string,
+  previousContent: string | undefined,
+  existedBefore: boolean
 ): void {
-  const current = JSON.stringify(config.copilot ?? DEFAULT_COPILOT_CONFIG);
-  const next = JSON.stringify(copilotConfig);
-  if (current === next) return;
-  config.copilot = copilotConfig;
-  saveUnifiedConfig(config);
+  if (!existedBefore) {
+    if (fs.existsSync(settingsPath)) {
+      fs.unlinkSync(settingsPath);
+    }
+    return;
+  }
+
+  const tempPath = `${settingsPath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.restore.tmp`;
+  fs.writeFileSync(tempPath, previousContent ?? '');
+  fs.renameSync(tempPath, settingsPath);
+}
+
+function buildDefaultSettings(copilotConfig: CopilotConfig) {
+  return {
+    env: {
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${copilotConfig.port}`,
+      ANTHROPIC_AUTH_TOKEN: 'copilot-managed',
+      ANTHROPIC_MODEL: copilotConfig.model,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: copilotConfig.opus_model || copilotConfig.model,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: copilotConfig.sonnet_model || copilotConfig.model,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: copilotConfig.haiku_model || copilotConfig.model,
+      ANTHROPIC_SMALL_FAST_MODEL: copilotConfig.haiku_model || copilotConfig.model,
+    },
+  };
 }
 
 /**
@@ -50,74 +70,39 @@ router.get('/raw', (_req: Request, res: Response): void => {
   try {
     const settingsPath = path.join(getCcsDir(), 'copilot.settings.json');
     const config = loadOrCreateUnifiedConfig();
-    const copilotConfig = normalizeCopilotConfig(config.copilot ?? DEFAULT_COPILOT_CONFIG);
-    persistNormalizedCopilotConfig(config, copilotConfig);
+    const configResult = normalizeCopilotConfigWithWarnings(
+      config.copilot ?? DEFAULT_COPILOT_CONFIG
+    );
 
-    // Default model for all tiers
-    const defaultModel = copilotConfig.model;
-
-    // If file doesn't exist, return default structure with all model mappings
     if (!fs.existsSync(settingsPath)) {
-      // Create settings structure matching CLIProxy pattern
-      // Use 127.0.0.1 instead of localhost for more reliable local connections
-      const defaultSettings = normalizeCopilotSettings(
-        {
-          env: {
-            ANTHROPIC_BASE_URL: `http://127.0.0.1:${copilotConfig.port}`,
-            ANTHROPIC_AUTH_TOKEN: 'copilot-managed',
-            ANTHROPIC_MODEL: defaultModel,
-            ANTHROPIC_DEFAULT_OPUS_MODEL: copilotConfig.opus_model || defaultModel,
-            ANTHROPIC_DEFAULT_SONNET_MODEL: copilotConfig.sonnet_model || defaultModel,
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: copilotConfig.haiku_model || defaultModel,
-          },
-        },
-        copilotConfig
+      const defaultSettings = normalizeCopilotSettingsWithWarnings(
+        buildDefaultSettings(configResult.config),
+        configResult.config
       );
 
       res.json({
-        settings: defaultSettings,
+        settings: defaultSettings.settings,
+        effectiveSettings: defaultSettings.settings,
         mtime: Date.now(),
         path: `~/.ccs/copilot.settings.json`,
         exists: false,
+        warnings: defaultSettings.warnings,
       });
       return;
     }
 
     const content = fs.readFileSync(settingsPath, 'utf-8');
-    const settings = normalizeCopilotSettings(
-      JSON.parse(content) as Record<string, unknown>,
-      copilotConfig
-    );
-    writeSettingsFile(settingsPath, settings, content);
-
-    const env =
-      settings.env && typeof settings.env === 'object' && !Array.isArray(settings.env)
-        ? settings.env
-        : {};
-    persistNormalizedCopilotConfig(config, {
-      ...copilotConfig,
-      model: typeof env.ANTHROPIC_MODEL === 'string' ? env.ANTHROPIC_MODEL : copilotConfig.model,
-      opus_model:
-        typeof env.ANTHROPIC_DEFAULT_OPUS_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_OPUS_MODEL
-          : undefined,
-      sonnet_model:
-        typeof env.ANTHROPIC_DEFAULT_SONNET_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_SONNET_MODEL
-          : undefined,
-      haiku_model:
-        typeof env.ANTHROPIC_DEFAULT_HAIKU_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_HAIKU_MODEL
-          : undefined,
-    });
-
+    const rawSettings = JSON.parse(content) as Record<string, unknown>;
+    const settingsResult = normalizeCopilotSettingsWithWarnings(rawSettings, configResult.config);
     const stat = fs.statSync(settingsPath);
 
     res.json({
-      settings,
+      settings: rawSettings,
+      effectiveSettings: settingsResult.settings,
       mtime: stat.mtimeMs,
       path: `~/.ccs/copilot.settings.json`,
       exists: true,
+      warnings: settingsResult.warnings,
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -132,8 +117,16 @@ router.put('/raw', (req: Request, res: Response): void => {
   try {
     const { settings, expectedMtime } = req.body;
     const settingsPath = path.join(getCcsDir(), 'copilot.settings.json');
-    const config = loadOrCreateUnifiedConfig();
-    const copilotConfig = normalizeCopilotConfig(config.copilot ?? DEFAULT_COPILOT_CONFIG);
+
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      res.status(400).json({ error: 'settings must be a JSON object' });
+      return;
+    }
+
+    const currentConfig = loadOrCreateUnifiedConfig();
+    const configResult = normalizeCopilotConfigWithWarnings(
+      currentConfig.copilot ?? DEFAULT_COPILOT_CONFIG
+    );
 
     // Check for conflict if file exists and expectedMtime provided
     if (fs.existsSync(settingsPath) && expectedMtime) {
@@ -144,43 +137,40 @@ router.put('/raw', (req: Request, res: Response): void => {
       }
     }
 
-    const normalizedSettings = normalizeCopilotSettings(
+    const settingsResult = normalizeCopilotSettingsWithWarnings(
       settings as Record<string, unknown>,
-      copilotConfig
+      configResult.config
     );
-    writeSettingsFile(settingsPath, normalizedSettings);
+    const existedBefore = fs.existsSync(settingsPath);
+    const previousContent = existedBefore ? fs.readFileSync(settingsPath, 'utf-8') : undefined;
+    writeSettingsFile(
+      settingsPath,
+      settingsResult.settings as Record<string, unknown>,
+      previousContent
+    );
 
-    // Also sync model mappings back to unified config
-    const env =
-      normalizedSettings.env &&
-      typeof normalizedSettings.env === 'object' &&
-      !Array.isArray(normalizedSettings.env)
-        ? normalizedSettings.env
-        : {};
-
-    config.copilot = normalizeCopilotConfig({
-      ...(config.copilot ?? DEFAULT_COPILOT_CONFIG),
-      model:
-        typeof env.ANTHROPIC_MODEL === 'string'
-          ? env.ANTHROPIC_MODEL
-          : config.copilot?.model || DEFAULT_COPILOT_CONFIG.model,
-      opus_model:
-        typeof env.ANTHROPIC_DEFAULT_OPUS_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_OPUS_MODEL
-          : undefined,
-      sonnet_model:
-        typeof env.ANTHROPIC_DEFAULT_SONNET_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_SONNET_MODEL
-          : undefined,
-      haiku_model:
-        typeof env.ANTHROPIC_DEFAULT_HAIKU_MODEL === 'string'
-          ? env.ANTHROPIC_DEFAULT_HAIKU_MODEL
-          : undefined,
-    });
-    saveUnifiedConfig(config);
+    try {
+      mutateUnifiedConfig((config) => {
+        config.copilot = settingsResult.effectiveConfig;
+      });
+    } catch (error) {
+      try {
+        restoreSettingsFile(settingsPath, previousContent, existedBefore);
+      } catch (rollbackError) {
+        throw new Error(
+          `Failed to sync unified config after writing Copilot settings: ${(error as Error).message}. Rollback also failed: ${(rollbackError as Error).message}`
+        );
+      }
+      throw error;
+    }
 
     const stat = fs.statSync(settingsPath);
-    res.json({ success: true, mtime: stat.mtimeMs });
+    res.json({
+      success: true,
+      mtime: stat.mtimeMs,
+      settings: settingsResult.settings,
+      warnings: settingsResult.warnings,
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
