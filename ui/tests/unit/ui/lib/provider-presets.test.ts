@@ -28,6 +28,10 @@ describe('resolvePresetApiKeyValue', () => {
 });
 
 describe('provider preset metadata', () => {
+  it('uses the llama.cpp provider logo asset for the local llama.cpp preset', () => {
+    expect(getPresetById('llamacpp')?.icon).toBe('/assets/providers/llama-cpp.svg');
+  });
+
   it('keeps Anthropic direct last in the recommended order', () => {
     const recommendedPresetIds = getPresetsByCategory('recommended').map((preset) => preset.id);
     expect(recommendedPresetIds.at(-1)).toBe('anthropic');
