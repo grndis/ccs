@@ -40,6 +40,10 @@ function normalizeSearch(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function getOptionId(listboxId: string, value: string): string {
+  return `${listboxId}-option-${value.replace(/[^a-z0-9_-]+/gi, '-')}`;
+}
+
 export function SearchableSelect({
   value,
   onChange,
@@ -55,7 +59,10 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
+  const [activeOptionValue, setActiveOptionValue] = React.useState<string>();
+  const listboxId = React.useId();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const optionRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
   const selectedOption = React.useMemo(
     () => options.find((option) => option.value === value),
@@ -90,11 +97,83 @@ export function SearchableSelect({
     return [{ key: '__default', options: ungrouped }, ...grouped];
   }, [filteredOptions, groups]);
 
+  const enabledFilteredOptions = React.useMemo(
+    () => filteredOptions.filter((option) => !option.disabled),
+    [filteredOptions]
+  );
+
   const selectedContent = selectedOption?.triggerContent ?? selectedOption?.itemContent;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (!nextOpen) setQuery('');
+    if (!nextOpen) {
+      setQuery('');
+      setActiveOptionValue(undefined);
+    }
+  };
+
+  const focusSearchInput = () => searchInputRef.current?.focus();
+
+  React.useEffect(() => {
+    if (!open) return;
+    if (enabledFilteredOptions.length === 0) {
+      setActiveOptionValue(undefined);
+      return;
+    }
+
+    setActiveOptionValue((currentValue) => {
+      if (currentValue && enabledFilteredOptions.some((option) => option.value === currentValue)) {
+        return currentValue;
+      }
+
+      return (
+        enabledFilteredOptions.find((option) => option.value === value)?.value ??
+        enabledFilteredOptions[0]?.value
+      );
+    });
+  }, [enabledFilteredOptions, open, value]);
+
+  React.useEffect(() => {
+    if (!open || !activeOptionValue) return;
+    optionRefs.current[activeOptionValue]?.scrollIntoView({ block: 'nearest' });
+  }, [activeOptionValue, open]);
+
+  const moveActiveOption = (direction: 'next' | 'previous' | 'first' | 'last') => {
+    if (enabledFilteredOptions.length === 0) return;
+    if (direction === 'first') {
+      setActiveOptionValue(enabledFilteredOptions[0]?.value);
+      return;
+    }
+    if (direction === 'last') {
+      setActiveOptionValue(enabledFilteredOptions.at(-1)?.value);
+      return;
+    }
+
+    const currentIndex = enabledFilteredOptions.findIndex(
+      (option) => option.value === activeOptionValue
+    );
+    const fallbackIndex = direction === 'next' ? -1 : enabledFilteredOptions.length;
+    const startIndex = currentIndex >= 0 ? currentIndex : fallbackIndex;
+    const nextIndex =
+      direction === 'next'
+        ? Math.min(startIndex + 1, enabledFilteredOptions.length - 1)
+        : Math.max(startIndex - 1, 0);
+
+    setActiveOptionValue(enabledFilteredOptions[nextIndex]?.value);
+  };
+
+  const selectOption = (nextValue: string) => {
+    onChange(nextValue);
+    handleOpenChange(false);
+  };
+
+  const selectActiveOption = () => {
+    if (!activeOptionValue) return;
+    const activeOption = enabledFilteredOptions.find(
+      (option) => option.value === activeOptionValue
+    );
+    if (!activeOption) return;
+    selectOption(activeOption.value);
   };
 
   return (
@@ -103,10 +182,27 @@ export function SearchableSelect({
         <Button
           type="button"
           variant="outline"
-          role="combobox"
           aria-expanded={open}
-          aria-haspopup="listbox"
+          aria-controls={open ? listboxId : undefined}
+          aria-haspopup="dialog"
           disabled={disabled}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            event.preventDefault();
+            handleOpenChange(true);
+
+            const setInitialActiveOption = () => {
+              focusSearchInput();
+              moveActiveOption(event.key === 'ArrowDown' ? 'first' : 'last');
+            };
+
+            if (typeof requestAnimationFrame === 'function') {
+              requestAnimationFrame(setInitialActiveOption);
+              return;
+            }
+
+            setTimeout(setInitialActiveOption, 0);
+          }}
           className={cn(
             'w-full justify-between font-normal',
             className,
@@ -125,12 +221,11 @@ export function SearchableSelect({
         className={cn('w-[var(--radix-popover-trigger-width)] p-0', contentClassName)}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          const focusInput = () => searchInputRef.current?.focus();
           if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(focusInput);
+            requestAnimationFrame(focusSearchInput);
             return;
           }
-          setTimeout(focusInput, 0);
+          setTimeout(focusSearchInput, 0);
         }}
       >
         <div className="border-b p-2">
@@ -140,6 +235,45 @@ export function SearchableSelect({
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              role="combobox"
+              aria-label={searchPlaceholder}
+              aria-autocomplete="list"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              aria-activedescendant={
+                activeOptionValue ? getOptionId(listboxId, activeOptionValue) : undefined
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  moveActiveOption('next');
+                  return;
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  moveActiveOption('previous');
+                  return;
+                }
+                if (event.key === 'Home') {
+                  event.preventDefault();
+                  moveActiveOption('first');
+                  return;
+                }
+                if (event.key === 'End') {
+                  event.preventDefault();
+                  moveActiveOption('last');
+                  return;
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  selectActiveOption();
+                  return;
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  handleOpenChange(false);
+                }
+              }}
               placeholder={searchPlaceholder}
               className="pl-8"
             />
@@ -150,7 +284,7 @@ export function SearchableSelect({
           {filteredOptions.length === 0 ? (
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
           ) : (
-            <div role="listbox" aria-label={placeholder} className="p-1">
+            <div id={listboxId} role="listbox" aria-label={placeholder} className="p-1">
               {groupedOptions.map((group) => (
                 <div key={group.key}>
                   {group.label && (
@@ -159,21 +293,31 @@ export function SearchableSelect({
                     </div>
                   )}
                   {group.options.map((option) => {
+                    const isActive = option.value === activeOptionValue;
                     const isSelected = option.value === value;
                     return (
                       <button
+                        id={getOptionId(listboxId, option.value)}
                         key={option.value}
                         type="button"
                         role="option"
                         aria-selected={isSelected}
                         disabled={option.disabled}
-                        onClick={() => {
-                          onChange(option.value);
-                          handleOpenChange(false);
+                        tabIndex={-1}
+                        ref={(node) => {
+                          optionRefs.current[option.value] = node;
                         }}
+                        onMouseMove={() => {
+                          if (!option.disabled) setActiveOptionValue(option.value);
+                        }}
+                        onFocus={() => {
+                          if (!option.disabled) setActiveOptionValue(option.value);
+                        }}
+                        onClick={() => selectOption(option.value)}
                         className={cn(
                           'hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none',
                           'focus-visible:ring-ring focus-visible:ring-1',
+                          isActive && 'bg-accent text-accent-foreground',
                           isSelected && 'bg-accent text-accent-foreground',
                           option.disabled && 'pointer-events-none opacity-50'
                         )}

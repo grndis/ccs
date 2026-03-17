@@ -65,12 +65,13 @@ describe('SearchableSelect', () => {
   it('autofocuses the search input, filters options, and updates the selection', async () => {
     render(<SearchableSelectHarness />);
 
-    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Select model' }));
 
     const searchInput = await screen.findByPlaceholderText('Search models...');
     await waitFor(() => {
       expect(searchInput).toHaveFocus();
     });
+    expect(searchInput).toHaveAttribute('role', 'combobox');
 
     await userEvent.type(searchInput, 'gpt');
 
@@ -80,16 +81,59 @@ describe('SearchableSelect', () => {
     await userEvent.click(screen.getByRole('option', { name: 'GPT-5.3 Codex' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox')).toHaveTextContent('GPT-5.3 Codex');
+      expect(screen.getByRole('button', { name: 'GPT-5.3 Codex' })).toBeInTheDocument();
     });
   });
 
   it('shows the empty state when the search query has no matches', async () => {
     render(<SearchableSelectHarness />);
 
-    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Select model' }));
     await userEvent.type(await screen.findByPlaceholderText('Search models...'), 'no-match');
 
     expect(screen.getByText('No results found.')).toBeInTheDocument();
+  });
+
+  it('supports keyboard navigation and selection from the search input', async () => {
+    render(<SearchableSelectHarness />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select model' }));
+
+    const searchInput = await screen.findByRole('combobox', { name: 'Search models...' });
+    await waitFor(() => {
+      expect(searchInput).toHaveFocus();
+    });
+
+    expect(searchInput).toHaveAttribute(
+      'aria-activedescendant',
+      expect.stringContaining('claude-sonnet-4')
+    );
+
+    await userEvent.keyboard('[ArrowDown]');
+    expect(searchInput).toHaveAttribute(
+      'aria-activedescendant',
+      expect.stringContaining('gpt-5-3-codex')
+    );
+
+    await userEvent.keyboard('[Enter]');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'GPT-5.3 Codex' })).toBeInTheDocument();
+    });
+  });
+
+  it('opens from the trigger with arrow keys', async () => {
+    render(<SearchableSelectHarness />);
+
+    await userEvent.keyboard('[Tab][ArrowDown]');
+
+    const searchInput = await screen.findByRole('combobox', { name: 'Search models...' });
+    await waitFor(() => {
+      expect(searchInput).toHaveFocus();
+    });
+    expect(searchInput).toHaveAttribute(
+      'aria-activedescendant',
+      expect.stringContaining('claude-sonnet-4')
+    );
   });
 });
