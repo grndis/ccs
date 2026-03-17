@@ -258,16 +258,15 @@ const RAW_PROVIDER_PRESET_DEFINITIONS: readonly ProviderPresetDefinition[] = [
   {
     id: 'novita',
     name: 'Novita AI',
-    description: 'OpenAI-compatible API (Llama, Mistral, Qwen, and more)',
-    baseUrl: 'https://api.novita.ai/openai',
+    description: 'Anthropic-compatible API for Claude Code and CCS profiles',
+    baseUrl: 'https://api.novita.ai/anthropic',
     defaultProfileName: 'novita',
     defaultModel: 'deepseek/deepseek-v3.2',
     apiKeyPlaceholder: 'YOUR_NOVITA_API_KEY',
     apiKeyHint: 'Get your API key at novita.ai',
     category: 'alternative',
     requiresApiKey: true,
-    badge: 'OpenAI-compatible',
-    icon: '/icons/novita.svg',
+    badge: 'Anthropic-compatible',
   },
 ];
 

@@ -5,7 +5,7 @@ describe('provider-presets-novita', () => {
   it('resolves novita preset id', () => {
     const preset = getPresetById('novita');
     expect(preset?.id).toBe('novita');
-    expect(preset?.baseUrl).toBe('https://api.novita.ai/openai');
+    expect(preset?.baseUrl).toBe('https://api.novita.ai/anthropic');
     expect(preset?.defaultProfileName).toBe('novita');
   });
 
