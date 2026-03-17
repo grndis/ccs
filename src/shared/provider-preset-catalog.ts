@@ -267,6 +267,7 @@ const RAW_PROVIDER_PRESET_DEFINITIONS: readonly ProviderPresetDefinition[] = [
     category: 'alternative',
     requiresApiKey: true,
     badge: 'Anthropic-compatible',
+    icon: '/icons/novita.svg',
   },
 ];
 
