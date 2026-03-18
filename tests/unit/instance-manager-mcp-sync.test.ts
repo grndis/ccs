@@ -17,6 +17,10 @@ describe('InstanceManager MCP sync', () => {
   const readJson = (filePath: string) =>
     JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 
+  function ensureMarketplacePayload(configDir: string, name = 'claude-code-plugins'): void {
+    fs.mkdirSync(marketplacePath(configDir, name), { recursive: true });
+  }
+
   function writeMarketplaceRegistry(registryPath: string, installLocation: string): void {
     fs.mkdirSync(path.dirname(registryPath), { recursive: true });
     fs.writeFileSync(
@@ -169,6 +173,7 @@ describe('InstanceManager MCP sync', () => {
     const manager = new InstanceManager();
     const instancePath = manager.getInstancePath('sandbox');
     const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+    ensureMarketplacePayload(claudeDir());
     writeMarketplaceRegistry(
       globalRegistryPath,
       path.join(
@@ -193,6 +198,90 @@ describe('InstanceManager MCP sync', () => {
     expect(syncMcpSpy).not.toHaveBeenCalled();
   });
 
+  it('detaches existing shared layout when an instance is reopened as bare', async () => {
+    spyOn(SharedManager.prototype, 'syncProjectContext').mockResolvedValue(undefined);
+    spyOn(SharedManager.prototype, 'syncAdvancedContinuityArtifacts').mockResolvedValue(undefined);
+    const syncMcpSpy = spyOn(InstanceManager.prototype, 'syncMcpServers').mockImplementation(
+      () => false
+    );
+
+    const manager = new InstanceManager();
+    const instancePath = await manager.ensureInstance('work', { mode: 'isolated' });
+    syncMcpSpy.mockClear();
+
+    await manager.ensureInstance('work', { mode: 'isolated' }, { bare: true });
+
+    expect(fs.existsSync(path.join(instancePath, 'settings.json'))).toBe(false);
+    expect(fs.existsSync(path.join(instancePath, 'commands'))).toBe(false);
+    expect(fs.existsSync(path.join(instancePath, 'skills'))).toBe(false);
+    expect(fs.existsSync(path.join(instancePath, 'agents'))).toBe(false);
+    expect(fs.existsSync(path.join(instancePath, 'plugins'))).toBe(false);
+    expect(syncMcpSpy).not.toHaveBeenCalled();
+  });
+
+  it('restores the shared layout when a bare-reopened instance is switched back to non-bare', async () => {
+    spyOn(SharedManager.prototype, 'syncProjectContext').mockResolvedValue(undefined);
+    spyOn(SharedManager.prototype, 'syncAdvancedContinuityArtifacts').mockResolvedValue(undefined);
+    const syncMcpSpy = spyOn(InstanceManager.prototype, 'syncMcpServers').mockImplementation(
+      () => false
+    );
+
+    const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+    ensureMarketplacePayload(claudeDir());
+    writeMarketplaceRegistry(globalRegistryPath, marketplacePath(claudeDir()));
+
+    const manager = new InstanceManager();
+    const instancePath = await manager.ensureInstance('work', { mode: 'isolated' });
+    await manager.ensureInstance('work', { mode: 'isolated' }, { bare: true });
+    syncMcpSpy.mockClear();
+
+    await manager.ensureInstance('work', { mode: 'isolated' });
+
+    expect(fs.lstatSync(path.join(instancePath, 'settings.json')).isSymbolicLink()).toBe(true);
+    expectMarketplaceLocation(
+      path.join(instancePath, 'plugins', 'known_marketplaces.json'),
+      marketplacePath(instancePath)
+    );
+    expect(syncMcpSpy).toHaveBeenCalledWith(instancePath);
+  });
+
+  it('preserves genuine bare-local content when re-ensuring a bare instance', async () => {
+    spyOn(SharedManager.prototype, 'syncProjectContext').mockResolvedValue(undefined);
+    spyOn(SharedManager.prototype, 'syncAdvancedContinuityArtifacts').mockResolvedValue(undefined);
+    const syncMcpSpy = spyOn(InstanceManager.prototype, 'syncMcpServers').mockImplementation(
+      () => false
+    );
+
+    const manager = new InstanceManager();
+    const instancePath = manager.getInstancePath('sandbox');
+    fs.mkdirSync(path.join(instancePath, 'plugins', 'marketplaces', 'custom-market'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(instancePath, 'commands'), { recursive: true });
+    fs.writeFileSync(
+      path.join(instancePath, 'settings.json'),
+      JSON.stringify({ local: true }, null, 2),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(instancePath, 'commands', 'local.md'), '# local', 'utf8');
+    writeMarketplaceRegistry(
+      path.join(instancePath, 'plugins', 'known_marketplaces.json'),
+      marketplacePath(instancePath, 'custom-market')
+    );
+
+    await manager.ensureInstance('sandbox', { mode: 'isolated' }, { bare: true });
+
+    expect(readJson(path.join(instancePath, 'settings.json'))).toEqual({ local: true });
+    expect(fs.readFileSync(path.join(instancePath, 'commands', 'local.md'), 'utf8')).toBe(
+      '# local'
+    );
+    expectMarketplaceLocation(
+      path.join(instancePath, 'plugins', 'known_marketplaces.json'),
+      marketplacePath(instancePath, 'custom-market')
+    );
+    expect(syncMcpSpy).not.toHaveBeenCalled();
+  });
+
   it('rewrites existing non-bare instance marketplace metadata to the instance-local plugin dir', async () => {
     spyOn(SharedManager.prototype, 'syncProjectContext').mockResolvedValue(undefined);
     spyOn(SharedManager.prototype, 'syncAdvancedContinuityArtifacts').mockResolvedValue(undefined);
@@ -202,6 +291,7 @@ describe('InstanceManager MCP sync', () => {
 
     const manager = new InstanceManager();
     const instancePath = manager.getInstancePath('work');
+    ensureMarketplacePayload(claudeDir());
     writeMarketplaceRegistry(
       path.join(instancePath, 'plugins', 'known_marketplaces.json'),
       path.join(tempRoot, '.claude', 'plugins', 'marketplaces', 'claude-code-plugins')
@@ -224,6 +314,7 @@ describe('InstanceManager MCP sync', () => {
     );
 
     const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+    ensureMarketplacePayload(claudeDir());
     writeMarketplaceRegistry(
       globalRegistryPath,
       path.join(
@@ -253,6 +344,7 @@ describe('InstanceManager MCP sync', () => {
     spyOn(SharedManager.prototype, 'syncAdvancedContinuityArtifacts').mockResolvedValue(undefined);
 
     const manager = new InstanceManager();
+    ensureMarketplacePayload(claudeDir());
     const workPath = await manager.ensureInstance('work', { mode: 'isolated' });
     const workRegistryPath = path.join(workPath, 'plugins', 'known_marketplaces.json');
     writeMarketplaceRegistryWithMetadata(workRegistryPath, marketplacePath(workPath), {
@@ -315,6 +407,7 @@ describe('InstanceManager MCP sync', () => {
     fs.mkdirSync(legacyPath, { recursive: true });
     fs.symlinkSync(sharedPluginsPath, path.join(legacyPath, 'plugins'), 'dir');
 
+    ensureMarketplacePayload(claudeDir());
     writeMarketplaceRegistryWithMetadata(
       path.join(claudeDir(), 'plugins', 'known_marketplaces.json'),
       path.join(tempRoot, '.ccs', 'shared', 'plugins', 'marketplaces', 'claude-code-plugins'),

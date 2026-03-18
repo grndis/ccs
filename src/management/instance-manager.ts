@@ -65,6 +65,7 @@ class InstanceManager {
           return;
         }
 
+        this.sharedManager.detachSharedDirectories(instancePath);
         this.sharedManager.normalizeSharedPluginMetadataPaths();
       });
     });

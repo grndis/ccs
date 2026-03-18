@@ -307,6 +307,31 @@ class SharedManager {
     this.normalizeSharedPluginMetadataPaths(instancePath);
   }
 
+  detachSharedDirectories(instancePath: string): void {
+    this.ensureSharedDirectories();
+
+    for (const item of this.sharedItems) {
+      const managedPath = path.join(instancePath, item.name);
+      if (!fs.existsSync(managedPath)) {
+        continue;
+      }
+
+      if (item.name === 'plugins') {
+        this.detachManagedPluginLayout(instancePath);
+        continue;
+      }
+
+      const stats = fs.lstatSync(managedPath);
+      if (!stats.isSymbolicLink()) {
+        continue;
+      }
+
+      if (this.symlinkPointsTo(managedPath, path.join(this.sharedDir, item.name))) {
+        this.removeExistingPath(managedPath, item.type);
+      }
+    }
+  }
+
   private ensureSharedPluginLayoutDefaults(): void {
     const pluginsDir = path.join(this.claudeDir, 'plugins');
     fs.mkdirSync(pluginsDir, { recursive: true, mode: 0o700 });
@@ -906,7 +931,9 @@ class SharedManager {
       }
     }
 
-    for (const [name, value] of Object.entries(this.discoverMarketplaceEntries(targetConfigDir))) {
+    const discoveredEntries = this.discoverMarketplaceEntries(targetConfigDir);
+
+    for (const [name, value] of Object.entries(discoveredEntries)) {
       const existing = merged[name];
       if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
         merged[name] = {
@@ -917,6 +944,12 @@ class SharedManager {
       }
 
       merged[name] = value;
+    }
+
+    for (const name of Object.keys(merged)) {
+      if (!(name in discoveredEntries)) {
+        delete merged[name];
+      }
     }
 
     return JSON.stringify(merged, null, 2);
@@ -1440,6 +1473,118 @@ class SharedManager {
     }
 
     return candidate;
+  }
+
+  private symlinkPointsTo(linkPath: string, expectedTarget: string): boolean {
+    try {
+      const currentTarget = fs.readlinkSync(linkPath);
+      const resolvedCurrentTarget = path.resolve(path.dirname(linkPath), currentTarget);
+      return (
+        this.resolveCanonicalPath(resolvedCurrentTarget) ===
+        this.resolveCanonicalPath(expectedTarget)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private detachManagedPluginLayout(instancePath: string): void {
+    const pluginsPath = path.join(instancePath, 'plugins');
+    if (!fs.existsSync(pluginsPath)) {
+      return;
+    }
+
+    const stats = fs.lstatSync(pluginsPath);
+    const sharedPluginsPath = path.join(this.sharedDir, 'plugins');
+
+    if (stats.isSymbolicLink()) {
+      if (this.symlinkPointsTo(pluginsPath, sharedPluginsPath)) {
+        this.removeExistingPath(pluginsPath, 'directory');
+      }
+      return;
+    }
+
+    if (!stats.isDirectory()) {
+      return;
+    }
+
+    let removedManagedEntries = false;
+
+    for (const item of this.getSharedPluginLinkItems()) {
+      const pluginEntryPath = path.join(pluginsPath, item.name);
+      if (!fs.existsSync(pluginEntryPath)) {
+        continue;
+      }
+
+      const entryStats = fs.lstatSync(pluginEntryPath);
+      if (!entryStats.isSymbolicLink()) {
+        continue;
+      }
+
+      if (this.symlinkPointsTo(pluginEntryPath, path.join(sharedPluginsPath, item.name))) {
+        this.removeExistingPath(pluginEntryPath, item.type);
+        removedManagedEntries = true;
+      }
+    }
+
+    if (!removedManagedEntries) {
+      return;
+    }
+
+    this.reconcileLocalMarketplaceRegistry(instancePath);
+
+    if (fs.readdirSync(pluginsPath).length === 0) {
+      fs.rmSync(pluginsPath, { recursive: true, force: true });
+    }
+  }
+
+  private reconcileLocalMarketplaceRegistry(configDir: string): void {
+    const registryPath = path.join(configDir, 'plugins', 'known_marketplaces.json');
+    if (!fs.existsSync(registryPath)) {
+      return;
+    }
+
+    const discoveredEntries = this.discoverMarketplaceEntries(configDir);
+    if (Object.keys(discoveredEntries).length === 0) {
+      this.removeExistingPath(registryPath, 'file');
+      return;
+    }
+
+    let parsed: Record<string, unknown> = {};
+    try {
+      const raw = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as unknown;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        parsed = raw as Record<string, unknown>;
+      }
+    } catch {
+      parsed = {};
+    }
+
+    const reconciled = Object.fromEntries(
+      Object.entries(discoveredEntries).map(([name, value]) => {
+        const existing = parsed[name];
+        if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+          return [
+            name,
+            {
+              ...(normalizePluginMetadataValue(existing, configDir).normalized as Record<
+                string,
+                unknown
+              >),
+              installLocation: value.installLocation,
+            },
+          ];
+        }
+
+        return [name, value];
+      })
+    );
+
+    this.writePluginMetadataFile(
+      registryPath,
+      JSON.stringify(reconciled, null, 2),
+      'Synchronized marketplace registry paths'
+    );
   }
 
   private resolveCanonicalPath(targetPath: string): string {

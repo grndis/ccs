@@ -22,6 +22,10 @@ describe('SharedManager', () => {
   const readJson = (filePath: string) =>
     JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 
+  function ensureMarketplacePayload(configDir: string, name = 'claude-code-plugins'): void {
+    fs.mkdirSync(marketplacePath(configDir, name), { recursive: true });
+  }
+
   function writeJson(filePath: string, value: unknown): void {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
@@ -153,6 +157,7 @@ describe('SharedManager', () => {
   describe('marketplace registry ownership', () => {
     it('writes global and instance registries with different authoritative install locations', () => {
       const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      ensureMarketplacePayload(claudeDir());
       writeJson(globalRegistryPath, {
         'claude-code-plugins': {
           installLocation: path.join(
@@ -204,6 +209,36 @@ describe('SharedManager', () => {
       });
     });
 
+    it('prunes stale marketplace entries whose payload directories no longer exist', () => {
+      const manager = new SharedManager();
+      const instancePath = instanceDir('work');
+      fs.mkdirSync(instancePath, { recursive: true });
+      manager.linkSharedDirectories(instancePath);
+
+      fs.mkdirSync(marketplacePath(claudeDir(), 'claude-code-plugins'), { recursive: true });
+      writeJson(path.join(instancePath, 'plugins', 'known_marketplaces.json'), {
+        'claude-code-plugins': {
+          installLocation: marketplacePath(instancePath, 'claude-code-plugins'),
+          label: 'Official marketplace',
+        },
+        stale: {
+          installLocation: marketplacePath(instancePath, 'stale'),
+          label: 'Stale marketplace',
+        },
+      });
+
+      manager.normalizeMarketplaceRegistryPaths(instancePath);
+
+      const reconciled = readJson(
+        path.join(instancePath, 'plugins', 'known_marketplaces.json')
+      ) as Record<string, { label?: string; installLocation?: string }>;
+      expect(reconciled['claude-code-plugins']).toEqual({
+        installLocation: marketplacePath(instancePath, 'claude-code-plugins'),
+        label: 'Official marketplace',
+      });
+      expect(reconciled.stale).toBeUndefined();
+    });
+
     it('warns and skips malformed marketplace registries while keeping valid sources', () => {
       const manager = new SharedManager();
       const instancePath = instanceDir('work');
@@ -211,6 +246,7 @@ describe('SharedManager', () => {
       manager.linkSharedDirectories(instancePath);
 
       const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      ensureMarketplacePayload(claudeDir());
       writeJson(globalRegistryPath, {
         'claude-code-plugins': {
           installLocation: path.join(
@@ -249,6 +285,7 @@ describe('SharedManager', () => {
       });
 
       const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      ensureMarketplacePayload(claudeDir());
       writeJson(globalRegistryPath, {
         'claude-code-plugins': {
           installLocation: path.join(
