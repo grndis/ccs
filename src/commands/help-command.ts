@@ -209,7 +209,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
         'Show auth URL and prompt for callback paste (cross-browser)',
       ],
       ['ccs <provider> --accounts', 'List all accounts'],
-      ['ccs <provider> --use <name>', 'Switch to account'],
+      ['ccs <provider> --use <nickname-or-id>', 'Switch to account'],
       ['ccs <provider> --config', 'Change model (agy, gemini)'],
       [
         'ccs agy --accept-agr-risk',
