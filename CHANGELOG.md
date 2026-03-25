@@ -1,3 +1,14 @@
+## [7.57.2](https://github.com/kaitranntt/ccs/compare/v7.57.1...v7.57.2) (2026-03-25)
+
+### Bug Fixes
+
+* **ci:** reuse runner bun for AI review ([0e2a2a0](https://github.com/kaitranntt/ccs/commit/0e2a2a01521f18a7206c291a3c8cb815da17e6a8))
+* **config:** close dashboard secret redaction gaps ([e983bed](https://github.com/kaitranntt/ccs/commit/e983bed1da27d0b2eeca29f4d9a7980b7d0ebc91))
+* **config:** harden dashboard config and rollback paths ([37251cd](https://github.com/kaitranntt/ccs/commit/37251cd1f855f0f6235db952e429a0cde8fcc11d))
+* **config:** preserve hidden auth secrets and block scalars ([6ccf53e](https://github.com/kaitranntt/ccs/commit/6ccf53ec7dc88a1297bfbb9518a937cdf2b6348d))
+* **shared-manager:** allow external claude symlink chains ([05dea22](https://github.com/kaitranntt/ccs/commit/05dea222382c06f6bc2d1ee229b0854e7a708c07))
+* **shared-manager:** guard inverse shared symlink loops ([c923f51](https://github.com/kaitranntt/ccs/commit/c923f51cf5e29df77b3af54dbfbc95893ee67fb5))
+
 ## [7.57.1](https://github.com/kaitranntt/ccs/compare/v7.57.0...v7.57.1) (2026-03-24)
 
 ### Bug Fixes
