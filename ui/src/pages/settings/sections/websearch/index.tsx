@@ -702,11 +702,11 @@ export default function WebSearchSection() {
                                   API Key
                                 </p>
                                 <p className="mt-1 text-sm text-foreground/90">
-                                  {getApiKeySummary(config?.apiKeys?.[provider.id])}
+                                  {getApiKeySummary(config?.apiKeys?.[apiKeyProviderId])}
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  {config?.apiKeys?.[provider.id]?.maskedValue
-                                    ? `${config.apiKeys[provider.id]?.envVar} ${config.apiKeys[provider.id]?.maskedValue}`
+                                  {config?.apiKeys?.[apiKeyProviderId]?.maskedValue
+                                    ? `${config.apiKeys[apiKeyProviderId]?.envVar} ${config.apiKeys[apiKeyProviderId]?.maskedValue}`
                                     : `Store ${provider.badge} here so the backend is ready immediately after you enable it.`}
                                 </p>
                               </div>
