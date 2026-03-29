@@ -47,9 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(res.username);
       })
       .catch(() => {
-        // If check fails, assume no auth required (backward compat)
-        setAuthRequired(false);
-        setIsAuthenticated(true);
+        // If auth check fails (e.g., 403 from remote access without auth configured),
+        // treat as auth required so the login page appears instead of a broken dashboard.
+        setAuthRequired(true);
+        setIsAuthenticated(false);
       })
       .finally(() => setLoading(false));
   }, []);
