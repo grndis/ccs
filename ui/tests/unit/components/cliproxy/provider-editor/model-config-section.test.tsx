@@ -56,8 +56,8 @@ describe('ModelConfigSection presets', () => {
         savedPresets={[]}
         currentModel="claude-opus-4-6-thinking"
         opusModel="claude-opus-4-6-thinking"
-        sonnetModel="gemini-3-pro-preview"
-        haikuModel="gemini-3-flash-preview"
+        sonnetModel="gemini-3.9-pro-preview"
+        haikuModel="gemini-3-9-flash-preview"
         providerModels={[]}
         provider="agy"
         onExtendedContextToggle={vi.fn()}
@@ -71,6 +71,43 @@ describe('ModelConfigSection presets', () => {
     expect(screen.queryByText('Free Tier')).not.toBeInTheDocument();
     expect(screen.queryByText('Paid Tier')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Claude Opus 4.6 Thinking' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gemini Pro' })).toBeInTheDocument();
     expect(screen.getByTestId('extended-context-toggle')).toBeInTheDocument();
+  });
+
+  it('applies Antigravity Gemini presets using the best live Gemini family ids', async () => {
+    const onApplyPreset = vi.fn();
+
+    render(
+      <ModelConfigSection
+        catalog={MODEL_CATALOGS.agy}
+        savedPresets={[]}
+        currentModel="claude-opus-4-6-thinking"
+        opusModel="claude-opus-4-6-thinking"
+        sonnetModel="gemini-3.9-pro-preview"
+        haikuModel="gemini-3-9-flash-preview"
+        providerModels={[
+          { id: 'gemini-3.9-pro-preview-customtools', owned_by: 'antigravity' },
+          { id: 'gemini-3.9-pro-preview', owned_by: 'antigravity' },
+          { id: 'gemini-3-9-flash-preview-customtools', owned_by: 'antigravity' },
+          { id: 'gemini-3-9-flash-preview', owned_by: 'antigravity' },
+        ]}
+        provider="agy"
+        onExtendedContextToggle={vi.fn()}
+        onApplyPreset={onApplyPreset}
+        onUpdateEnvValue={vi.fn()}
+        onOpenCustomPreset={vi.fn()}
+        onDeletePreset={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
+
+    expect(onApplyPreset).toHaveBeenCalledWith({
+      ANTHROPIC_MODEL: 'gemini-3.9-pro-preview',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3.9-pro-preview',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.9-pro-preview',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3-9-flash-preview',
+    });
   });
 });

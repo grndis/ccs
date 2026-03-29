@@ -35,8 +35,9 @@ export const CCS_CONTROL_PANEL_SECRET = 'ccs';
  * v11: Migrated deprecated claude-sonnet-4-6-thinking aliases to claude-sonnet-4-6
  * v12: Removed denylisted Antigravity Claude 4.5 aliases
  * v13: Removed aggressive Gemini alias expansion to reduce model list noise in Control Panel
+ * v14: Added Gemini 3.1 Flash Antigravity aliases for upcoming rollout compatibility
  */
-export const CLIPROXY_CONFIG_VERSION = 13;
+export const CLIPROXY_CONFIG_VERSION = 14;
 
 interface OAuthModelAliasEntry {
   name: string;
@@ -61,6 +62,7 @@ const DEFAULT_ANTIGRAVITY_ALIASES: OAuthModelAliasEntry[] = [
   { name: 'gemini-3-pro-high', alias: 'gemini-3.1-pro-preview' },
   { name: 'gemini-3-pro-high', alias: 'gemini-3.1-pro-preview-customtools' },
   { name: 'gemini-3-flash', alias: 'gemini-3-flash-preview' },
+  { name: 'gemini-3-flash', alias: 'gemini-3.1-flash-preview' },
   { name: 'claude-sonnet-4-6', alias: 'claude-sonnet-4-6', fork: true },
   // Backward compatibility: legacy sonnet thinking alias now routes to canonical model ID.
   { name: 'claude-sonnet-4-6-thinking', alias: 'claude-sonnet-4-6', fork: true },

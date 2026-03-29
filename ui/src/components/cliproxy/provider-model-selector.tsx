@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCodexEffortDisplay } from '@/lib/codex-effort';
+import { getResolvedCatalogModels } from '@/lib/model-catalogs';
 import { cn } from '@/lib/utils';
 
 /** Model entry from catalog */
@@ -303,10 +304,14 @@ export function FlexibleModelSelector({
   disabled,
 }: FlexibleModelSelectorProps) {
   const { t } = useTranslation();
-  const catalogModelIds = new Set(catalog?.models.map((model) => model.id) || []);
   const isCodexProvider = catalog?.provider === 'codex';
+  const resolvedCatalogModels = useMemo(
+    () => getResolvedCatalogModels(catalog, allModels),
+    [allModels, catalog]
+  );
+  const catalogModelIds = new Set(resolvedCatalogModels.map((model) => model.id));
 
-  const recommendedOptions = (catalog?.models ?? []).map((model) => ({
+  const recommendedOptions = resolvedCatalogModels.map((model) => ({
     value: model.id,
     groupKey: 'recommended',
     searchText: `${model.id} ${model.name}`,

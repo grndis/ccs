@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -9,7 +9,11 @@ import {
   importApiProfileBundle,
   registerApiProfileOrphans,
 } from '../../../src/api/services/profile-lifecycle-service';
-import { runWithScopedConfigDir, setGlobalConfigDir } from '../../../src/utils/config-manager';
+import {
+  loadConfigSafe,
+  runWithScopedConfigDir,
+  setGlobalConfigDir,
+} from '../../../src/utils/config-manager';
 
 describe('profile lifecycle service', () => {
   let tempHome = '';
@@ -37,6 +41,8 @@ describe('profile lifecycle service', () => {
   });
 
   afterEach(() => {
+    mock.restore();
+
     if (originalCcsHome === undefined) {
       delete process.env.CCS_HOME;
     } else {
@@ -122,6 +128,80 @@ describe('profile lifecycle service', () => {
     expect(result.skipped).toEqual([]);
   });
 
+  it('does not register orphan profiles when WebSearch hook setup fails', async () => {
+    const ccsDir = path.join(tempHome, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(ccsDir, 'extra.settings.json'),
+      JSON.stringify(
+        { env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ANTHROPIC_AUTH_TOKEN: 'token' } },
+        null,
+        2
+      ) + '\n'
+    );
+    fs.writeFileSync(path.join(ccsDir, 'config.json'), JSON.stringify({ profiles: {} }, null, 2) + '\n');
+
+    const copyFileSpy = spyOn(fs, 'copyFileSync').mockImplementation(() => {
+      throw new Error('copy failed');
+    });
+
+    const result = await runInScopedCcsDir(() => registerApiProfileOrphans({ names: ['extra'] }));
+    const config = await runInScopedCcsDir(() => loadConfigSafe());
+
+    expect(copyFileSpy).toHaveBeenCalled();
+    expect(result.registered).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.reason).toContain('could not prepare the profile hook');
+    expect(config.profiles.extra).toBeUndefined();
+  });
+
+  it('keeps orphan registration non-fatal when WebSearch is disabled', async () => {
+    const ccsDir = path.join(tempHome, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(ccsDir, 'extra.settings.json'),
+      JSON.stringify(
+        { env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ANTHROPIC_AUTH_TOKEN: 'token' } },
+        null,
+        2
+      ) + '\n'
+    );
+    fs.writeFileSync(path.join(ccsDir, 'config.json'), JSON.stringify({ profiles: {} }, null, 2) + '\n');
+    fs.writeFileSync(path.join(ccsDir, 'config.yaml'), 'version: 12\nwebsearch:\n  enabled: false\n', 'utf8');
+
+    const copyFileSpy = spyOn(fs, 'copyFileSync').mockImplementation(() => {
+      throw new Error('copy should not run when WebSearch is disabled');
+    });
+
+    const result = await runInScopedCcsDir(() => registerApiProfileOrphans({ names: ['extra'] }));
+
+    expect(copyFileSpy).not.toHaveBeenCalled();
+    expect(result.registered).toEqual(['extra']);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('registers malformed orphan settings when force bypasses validation', async () => {
+    const ccsDir = path.join(tempHome, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+
+    const malformedPath = path.join(ccsDir, 'bad.settings.json');
+    fs.writeFileSync(malformedPath, '{ invalid json', 'utf8');
+    fs.writeFileSync(path.join(ccsDir, 'config.json'), JSON.stringify({ profiles: {} }, null, 2) + '\n');
+
+    const result = await runInScopedCcsDir(() =>
+      registerApiProfileOrphans({ names: ['bad'], force: true })
+    );
+    const config = await runInScopedCcsDir(() => loadConfigSafe());
+
+    expect(result.registered).toEqual(['bad']);
+    expect(result.skipped).toEqual([]);
+    expect(config.profiles.bad).toBe('~/.ccs/bad.settings.json');
+    expect(fs.existsSync(path.join(ccsDir, 'hooks', 'websearch-transformer.cjs'))).toBe(false);
+    expect(fs.readFileSync(malformedPath, 'utf8')).toBe('{ invalid json');
+  });
+
   it('redacts all sensitive env values during export when includeSecrets=false', async () => {
     const ccsDir = path.join(tempHome, '.ccs');
     fs.mkdirSync(ccsDir, { recursive: true });
@@ -160,6 +240,34 @@ describe('profile lifecycle service', () => {
     expect(result.error).toContain('Invalid source profile name');
   });
 
+  it('rolls back copied settings when WebSearch hook setup fails', async () => {
+    const ccsDir = path.join(tempHome, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(ccsDir, 'config.json'),
+      JSON.stringify({ profiles: { source: '~/.ccs/source.settings.json' } }, null, 2) + '\n'
+    );
+    fs.writeFileSync(
+      path.join(ccsDir, 'source.settings.json'),
+      JSON.stringify(
+        { env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ANTHROPIC_AUTH_TOKEN: 'token' } },
+        null,
+        2
+      ) + '\n'
+    );
+
+    const copyFileSpy = spyOn(fs, 'copyFileSync').mockImplementation(() => {
+      throw new Error('copy failed');
+    });
+
+    const result = await runInScopedCcsDir(() => copyApiProfile('source', 'copy-dest'));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('could not prepare the profile hook');
+    expect(copyFileSpy).toHaveBeenCalled();
+    expect(fs.existsSync(path.join(ccsDir, 'copy-dest.settings.json'))).toBe(false);
+  });
+
   it('rejects import bundle with invalid profile target', async () => {
     const result = await runInScopedCcsDir(() =>
       importApiProfileBundle({
@@ -177,6 +285,38 @@ describe('profile lifecycle service', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Invalid bundle profile target');
+  });
+
+  it('rolls back imported settings when WebSearch hook setup fails', async () => {
+    const ccsDir = path.join(tempHome, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(ccsDir, 'config.json'),
+      JSON.stringify({ profiles: {} }, null, 2) + '\n'
+    );
+
+    const copyFileSpy = spyOn(fs, 'copyFileSync').mockImplementation(() => {
+      throw new Error('copy failed');
+    });
+
+    const result = await runInScopedCcsDir(() =>
+      importApiProfileBundle({
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        profile: { name: 'import-failure', target: 'claude' },
+        settings: {
+          env: {
+            ANTHROPIC_BASE_URL: 'https://api.example.com',
+            ANTHROPIC_AUTH_TOKEN: 'token',
+          },
+        },
+      })
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('could not prepare the profile hook');
+    expect(copyFileSpy).toHaveBeenCalled();
+    expect(fs.existsSync(path.join(ccsDir, 'import-failure.settings.json'))).toBe(false);
   });
 
   it('clears and warns for all redacted sensitive env keys on import', async () => {

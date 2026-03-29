@@ -11,6 +11,8 @@ import {
   migrateDeniedAntigravityModelAliases,
   normalizeModelIdForProvider,
 } from './model-id-normalizer';
+import { stripModelConfigurationSuffixes } from '../shared/extended-context-utils';
+import { GEMINI_MINOR_VERSION_COMPATIBILITY_IDS } from '../shared/gemini-minor-version-compatibility';
 
 /**
  * Thinking support configuration for a model.
@@ -108,9 +110,9 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
         },
       },
       {
-        id: 'gemini-3-pro-preview',
-        name: 'Gemini 3 Pro',
-        description: 'Google latest model via Antigravity',
+        id: 'gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro',
+        description: 'Google latest Gemini Pro model via Antigravity',
         thinking: { type: 'levels', levels: ['low', 'high'], dynamicAllowed: true },
         extendedContext: true,
       },
@@ -122,10 +124,10 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
     defaultModel: 'gemini-2.5-pro',
     models: [
       {
-        id: 'gemini-3-pro-preview',
-        name: 'Gemini 3 Pro',
+        id: 'gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro',
         tier: 'pro',
-        description: 'Latest model, requires paid Google account',
+        description: 'Latest Gemini Pro model, requires paid Google account',
         thinking: { type: 'levels', levels: ['low', 'high'], dynamicAllowed: true },
         extendedContext: true,
       },
@@ -384,13 +386,33 @@ export function getProviderCatalog(provider: CLIProxyProvider): ProviderCatalog 
 }
 
 /**
+ * Suggest a supported replacement model from the provider catalog.
+ * Prefers the provider default unless it matches the excluded model or is itself broken.
+ */
+export function getSuggestedReplacementModel(
+  provider: CLIProxyProvider,
+  excludedModelId?: string
+): string | undefined {
+  const catalog = MODEL_CATALOG[provider];
+  if (!catalog) return undefined;
+
+  const excludedId = excludedModelId ? findModel(provider, excludedModelId)?.id : undefined;
+  const defaultModel = findModel(provider, catalog.defaultModel);
+  if (defaultModel && !defaultModel.broken && defaultModel.id !== excludedId) {
+    return defaultModel.id;
+  }
+
+  return catalog.models.find((model) => !model.broken && model.id !== excludedId)?.id;
+}
+
+/**
  * Find model entry by ID
  * Note: Model IDs are normalized to lowercase for case-insensitive comparison
  */
 export function findModel(provider: CLIProxyProvider, modelId: string): ModelEntry | undefined {
   const catalog = MODEL_CATALOG[provider];
   if (!catalog || !modelId) return undefined;
-  const normalizedId = modelId.trim().toLowerCase();
+  const normalizedId = stripModelConfigurationSuffixes(modelId).trim().toLowerCase();
   const providerNormalizedId = normalizeModelIdForProvider(normalizedId, provider)
     .trim()
     .toLowerCase();
@@ -402,6 +424,16 @@ export function findModel(provider: CLIProxyProvider, modelId: string): ModelEnt
       .toLowerCase();
     lookupCandidates.add(migratedRaw);
     lookupCandidates.add(migratedProvider);
+  }
+
+  for (const candidate of [...lookupCandidates]) {
+    const compatibilityId =
+      GEMINI_MINOR_VERSION_COMPATIBILITY_IDS[
+        candidate as keyof typeof GEMINI_MINOR_VERSION_COMPATIBILITY_IDS
+      ];
+    if (compatibilityId) {
+      lookupCandidates.add(compatibilityId);
+    }
   }
 
   return catalog.models.find((m) => lookupCandidates.has(m.id.toLowerCase()));

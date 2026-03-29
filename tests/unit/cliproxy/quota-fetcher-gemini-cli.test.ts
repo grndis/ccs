@@ -168,6 +168,23 @@ describe('Gemini CLI Quota Fetcher', () => {
       expect(proBucket!.remainingFraction).toBe(0.9);
     });
 
+    it('should recognize Gemini 3.1 preview IDs during the rollout', () => {
+      const rawBuckets = [
+        { model_id: 'gemini-3.1-flash-preview', remaining_fraction: 0.7 },
+        { model_id: 'gemini-3.1-pro-preview', remaining_fraction: 0.4 },
+      ];
+
+      const buckets = buildGeminiCliBuckets(rawBuckets);
+
+      const flashBucket = buckets.find((b) => b.label === 'Gemini Flash Series');
+      const proBucket = buckets.find((b) => b.label === 'Gemini Pro Series');
+
+      expect(flashBucket).toBeDefined();
+      expect(flashBucket!.modelIds).toContain('gemini-3.1-flash-preview');
+      expect(proBucket).toBeDefined();
+      expect(proBucket!.modelIds).toContain('gemini-3.1-pro-preview');
+    });
+
     it('should handle camelCase API response', () => {
       const rawBuckets = [{ modelId: 'gemini-3-flash-preview', remainingFraction: 0.75 }];
 

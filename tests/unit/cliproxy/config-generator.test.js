@@ -640,6 +640,8 @@ auth-dir: "${cliproxyDir.replace(/\\/g, '/')}/auth"
       const gemini31AliasLines = [
         'alias: gemini-3.1-pro-preview',
         'alias: gemini-3.1-pro-preview-customtools',
+        'alias: gemini-3.1-flash-preview',
+        'alias: gemini-3.1-flash-preview-customtools',
       ];
 
       for (const aliasLine of gemini31AliasLines) {

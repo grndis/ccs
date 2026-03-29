@@ -11,7 +11,7 @@ import { Sparkles, Zap, Star, X, Plus } from 'lucide-react';
 import { FlexibleModelSelector } from '../provider-model-selector';
 import { ExtendedContextToggle } from '../extended-context-toggle';
 import { stripExtendedContextSuffix } from '@/lib/extended-context-utils';
-import { findCatalogModel } from '@/lib/model-catalogs';
+import { findCatalogModel, getResolvedCatalogModels } from '@/lib/model-catalogs';
 import type { ModelConfigSectionProps } from './types';
 
 type CatalogPresetModel = NonNullable<ModelConfigSectionProps['catalog']>['models'][number];
@@ -62,8 +62,13 @@ export function ModelConfigSection({
       .filter((model): model is NonNullable<typeof model> => Boolean(model?.extendedContext));
   }, [catalog, currentModel, opusModel, sonnetModel, haikuModel]);
 
+  const resolvedCatalogModels = useMemo(
+    () => getResolvedCatalogModels(catalog, providerModels),
+    [catalog, providerModels]
+  );
+
   const presetGroups = useMemo(() => {
-    const presetModels = (catalog?.models ?? []).filter((model) => model.presetMapping);
+    const presetModels = resolvedCatalogModels.filter((model) => model.presetMapping);
     if (presetModels.length === 0) return [];
 
     const hasPaidPresets = presetModels.some((model) => model.tier === 'paid');
@@ -89,7 +94,7 @@ export function ModelConfigSection({
         models: presetModels.filter((model) => model.tier === 'paid'),
       },
     ].filter((group) => group.models.length > 0);
-  }, [catalog]);
+  }, [resolvedCatalogModels]);
 
   const showPresets = presetGroups.length > 0 || savedPresets.length > 0;
 

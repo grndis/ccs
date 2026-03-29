@@ -34,7 +34,13 @@ import { DEFAULT_BACKEND } from '../platform-detector';
 import { configureProviderModel, getCurrentModel } from '../model-config';
 import { reconcileCodexModelForActivePlan } from '../codex-plan-compatibility';
 import { resolveProxyConfig, PROXY_CLI_FLAGS } from '../proxy-config-resolver';
-import { supportsModelConfig, isModelBroken, getModelIssueUrl, findModel } from '../model-catalog';
+import {
+  supportsModelConfig,
+  isModelBroken,
+  getModelIssueUrl,
+  findModel,
+  getSuggestedReplacementModel,
+} from '../model-catalog';
 import { CodexReasoningProxy } from '../codex-reasoning-proxy';
 import { ToolSanitizationProxy } from '../tool-sanitization-proxy';
 import {
@@ -714,9 +720,14 @@ export async function execClaudeWithCLIProxy(
     if (currentModel && isModelBroken(provider, currentModel)) {
       const modelEntry = findModel(provider, currentModel);
       const issueUrl = getModelIssueUrl(provider, currentModel);
+      const replacementModel = getSuggestedReplacementModel(provider, currentModel);
       console.error('');
       console.error(warn(`${modelEntry?.name || currentModel} has known issues with Claude Code`));
-      console.error('    Tool calls will fail. Use "gemini-3-pro-preview" instead.');
+      if (replacementModel) {
+        console.error(`    Tool calls will fail. Use "${replacementModel}" instead.`);
+      } else {
+        console.error('    Tool calls will fail. Consider changing the model in config.yaml.');
+      }
       if (issueUrl) {
         console.error(`    Tracking: ${issueUrl}`);
       }
