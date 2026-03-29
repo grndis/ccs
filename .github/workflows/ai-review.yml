@@ -282,19 +282,28 @@ jobs:
             --bare
             --model ${{ env.REVIEW_MODEL }}
             --permission-mode bypassPermissions
-            --max-turns 25
+            --max-turns 40
 
       - name: Fallback extraction
         if: always() && steps.claude-review.outcome != 'cancelled'
         run: |
           if [ -s "$REVIEW_OUTPUT_FILE" ]; then exit 0; fi
           EXEC_LOG="$RUNNER_TEMP/claude-execution-output.json"
-          if [ ! -f "$EXEC_LOG" ]; then echo "${{ matrix.name }} review not available." > "$REVIEW_OUTPUT_FILE"; exit 0; fi
-          EXTRACTED=$(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // empty' "$EXEC_LOG" 2>/dev/null || true)
+          if [ ! -f "$EXEC_LOG" ]; then
+            echo "> [!] ${{ matrix.name }} review: no execution log available." > "$REVIEW_OUTPUT_FILE"
+            exit 0
+          fi
+          # Extract ALL assistant text messages (not just last) — captures partial analysis
+          # when max-turns is hit before the model writes the output file
+          EXTRACTED=$(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | join("\n\n---\n\n") // empty' "$EXEC_LOG" 2>/dev/null || true)
           if [ -n "$EXTRACTED" ]; then
-            printf '%s\n' "$EXTRACTED" > "$REVIEW_OUTPUT_FILE"
+            {
+              echo "> [!] ${{ matrix.name }} review: extracted from execution log (reviewer did not write output file — likely hit turn limit)."
+              echo ""
+              printf '%s\n' "$EXTRACTED"
+            } > "$REVIEW_OUTPUT_FILE"
           else
-            echo "${{ matrix.name }} review produced no output." > "$REVIEW_OUTPUT_FILE"
+            echo "> [!] ${{ matrix.name }} review: execution completed but produced no extractable text." > "$REVIEW_OUTPUT_FILE"
           fi
 
       - name: Upload review output
@@ -464,7 +473,7 @@ jobs:
             --bare
             --model ${{ env.REVIEW_MODEL }}
             --permission-mode bypassPermissions
-            --max-turns 15
+            --max-turns 25
 
       - name: Fallback merge (if orchestrator fails)
         if: always() && steps.claude-merge.outcome != 'cancelled'
