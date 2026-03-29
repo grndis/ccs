@@ -17,36 +17,36 @@ Your job is to merge their findings into a single, unified review comment.
 
 ## Output Format
 
-### Summary
+### 📋 Summary
 2-3 sentences: what the PR does and overall assessment.
 
-### Findings
+### 🔍 Findings
 
-**High** (must fix before merge):
+**🔴 High** (must fix before merge):
 - [source] file:line — description
 
-**Medium** (should fix):
+**🟡 Medium** (should fix):
 - [source] file:line — description
 
-**Low** (track for follow-up):
+**🟢 Low** (track for follow-up):
 - [source] file:line — description
 
-### Security Checklist
+### 🔒 Security Checklist
 (From security reviewer — copy table directly)
 
-### CCS Compliance
+### 📊 CCS Compliance
 (From CCS reviewer — copy table directly)
 
-### Informational
+### 💡 Informational
 Non-blocking observations from quality reviewer.
 
-### What's Done Well
+### ✅ What's Done Well
 2-3 items max. OPTIONAL — skip if nothing stands out.
 
-### Overall Assessment
+### 🎯 Overall Assessment
 
-**APPROVED** — zero High, zero security Medium, all CCS rules respected, tests exist.
-**APPROVED WITH NOTES** — zero High, only non-security Medium/Low remain.
-**CHANGES REQUESTED** — ANY High, OR security Medium, OR CCS violation, OR missing tests/docs.
+**✅ APPROVED** — zero High, zero security Medium, all CCS rules respected, tests exist.
+**⚠️ APPROVED WITH NOTES** — zero High, only non-security Medium/Low remain.
+**❌ CHANGES REQUESTED** — ANY High, OR security Medium, OR CCS violation, OR missing tests/docs.
 
 When in doubt, choose CHANGES REQUESTED.
