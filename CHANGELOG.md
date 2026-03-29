@@ -1,3 +1,10 @@
+## [7.62.2](https://github.com/kaitranntt/ccs/compare/v7.62.1...v7.62.2) (2026-03-29)
+
+### Bug Fixes
+
+* **ai-review:** increase max-turns to 40 and add hotfix commitlint type ([bcbf8a2](https://github.com/kaitranntt/ccs/commit/bcbf8a236d0f90b3f7b85348e01bde95da03f42b))
+* **ai-review:** revert to single-job review with enhanced prompt ([fb8b26c](https://github.com/kaitranntt/ccs/commit/fb8b26c6947c5c0359cdc6898a5a6f17fdfef703))
+
 ## [7.62.1](https://github.com/kaitranntt/ccs/compare/v7.62.0...v7.62.1) (2026-03-29)
 
 ### Bug Fixes
