@@ -128,7 +128,7 @@ jobs:
     name: Claude Code Review
     needs: prepare
     if: needs.prepare.result == 'success'
-    timeout-minutes: 15
+    timeout-minutes: 18
     runs-on: ${{ fromJSON(needs.prepare.outputs.runs_on) }}
     permissions:
       contents: read
@@ -217,6 +217,51 @@ jobs:
             echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
+          # Load subagent prompts (all from base branch for security)
+          SECURITY_PROMPT=$(git show "origin/${BASE_REF}:.github/review-prompts/security.md" 2>/dev/null || echo "")
+          if [ -z "$SECURITY_PROMPT" ]; then
+            echo "::warning::security.md not found on base branch — using inline fallback"
+            SECURITY_PROMPT="You are a security reviewer. Check the diff for injection vulnerabilities, auth bypasses, race conditions, secrets exposure, and supply chain risks. Report findings as: #### [HIGH|MEDIUM|LOW] [SECURITY] file:line"
+          fi
+
+          QUALITY_PROMPT=$(git show "origin/${BASE_REF}:.github/review-prompts/quality.md" 2>/dev/null || echo "")
+          if [ -z "$QUALITY_PROMPT" ]; then
+            echo "::warning::quality.md not found on base branch — using inline fallback"
+            QUALITY_PROMPT="You are a code quality reviewer. Check for error handling gaps, false assumptions, performance issues, dead code, and test gaps. Report findings as: #### [HIGH|MEDIUM|LOW] [QUALITY] file:line"
+          fi
+
+          CCS_PROMPT=$(git show "origin/${BASE_REF}:.github/review-prompts/ccs-compliance.md" 2>/dev/null || echo "")
+          if [ -z "$CCS_PROMPT" ]; then
+            echo "::warning::ccs-compliance.md not found on base branch — using inline fallback"
+            CCS_PROMPT="You are a CCS compliance reviewer. Check for: no emojis in CLI output, getCcsDir() usage, cross-platform parity, --help updates, string-only settings, conventional commits. Report findings as: #### [HIGH|MEDIUM|LOW] [CCS] file:line"
+          fi
+
+          ADVERSARIAL_PROMPT=$(git show "origin/${BASE_REF}:.github/review-prompts/adversarial.md" 2>/dev/null || echo "")
+          if [ -z "$ADVERSARIAL_PROMPT" ]; then
+            echo "::warning::adversarial.md not found on base branch — using inline fallback"
+            ADVERSARIAL_PROMPT="You are an adversarial reviewer. Find what prior reviewers missed: interaction bugs, implicit coupling, missing rollback, boundary violations. Do NOT repeat prior findings. Report as: #### [HIGH|MEDIUM|LOW] [ADVERSARIAL] file:line"
+          fi
+
+          SECURITY_DELIM="SECURITY_$(openssl rand -hex 16)"
+          echo "security_prompt<<${SECURITY_DELIM}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$SECURITY_PROMPT" >> "$GITHUB_OUTPUT"
+          echo "${SECURITY_DELIM}" >> "$GITHUB_OUTPUT"
+
+          QUALITY_DELIM="QUALITY_$(openssl rand -hex 16)"
+          echo "quality_prompt<<${QUALITY_DELIM}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$QUALITY_PROMPT" >> "$GITHUB_OUTPUT"
+          echo "${QUALITY_DELIM}" >> "$GITHUB_OUTPUT"
+
+          CCS_DELIM="CCS_$(openssl rand -hex 16)"
+          echo "ccs_prompt<<${CCS_DELIM}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$CCS_PROMPT" >> "$GITHUB_OUTPUT"
+          echo "${CCS_DELIM}" >> "$GITHUB_OUTPUT"
+
+          ADVERSARIAL_DELIM="ADVERSARIAL_$(openssl rand -hex 16)"
+          echo "adversarial_prompt<<${ADVERSARIAL_DELIM}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$ADVERSARIAL_PROMPT" >> "$GITHUB_OUTPUT"
+          echo "${ADVERSARIAL_DELIM}" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
@@ -242,6 +287,22 @@ jobs:
 
             ${{ steps.review-prompt.outputs.content }}
 
+            <security-review-prompt>
+            ${{ steps.review-prompt.outputs.security_prompt }}
+            </security-review-prompt>
+
+            <quality-review-prompt>
+            ${{ steps.review-prompt.outputs.quality_prompt }}
+            </quality-review-prompt>
+
+            <ccs-compliance-review-prompt>
+            ${{ steps.review-prompt.outputs.ccs_prompt }}
+            </ccs-compliance-review-prompt>
+
+            <adversarial-review-prompt>
+            ${{ steps.review-prompt.outputs.adversarial_prompt }}
+            </adversarial-review-prompt>
+
             ## IMPORTANT: Writing the Review
             After completing your analysis, use the `Write` tool to write the final review markdown to `${{ env.REVIEW_OUTPUT_FILE }}`.
             Do NOT use `Edit` tool — use `Write` tool directly to create the file in one shot.
@@ -261,8 +322,8 @@ jobs:
             --bare
             --model ${{ env.REVIEW_MODEL }}
             --permission-mode bypassPermissions
-            --max-turns 30
-            --allowedTools "Glob,Grep,Read,Write,Bash(gh pr diff *),Bash(gh pr view *),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(cat *),Bash(ls *),Bash(wc *),Bash(head *),Bash(tail *),Bash(find *)"
+            --max-turns 50
+            --tools "Agent,Glob,Grep,Read,Write,Bash"
 
       # Fallback: if Claude didn't write the review file, extract from execution output
       - name: Extract review from execution output (fallback)
