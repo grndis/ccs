@@ -8,9 +8,7 @@
 # - Manually via workflow_dispatch
 #
 # Pipeline:
-#   prepare → load-prompts → security-review ─┐
-#                           → quality-review ──┤→ aggregate (merge + publish comment)
-#                           → ccs-review ──────┘
+#   prepare → load-prompts → review (matrix: security, quality, ccs) → aggregate (orchestrator merge + publish)
 #
 # Note: Concurrency group cancels in-progress reviews when new commits arrive.
 # This prevents wasting resources on outdated code reviews.
@@ -192,12 +190,28 @@ jobs:
 
           echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
 
-  security-review:
-    name: Security Review
+  review:
+    name: "${{ matrix.name }} Review"
     needs: [prepare, load-prompts]
     if: needs.prepare.result == 'success'
     timeout-minutes: 10
     runs-on: ${{ fromJSON(needs.prepare.outputs.runs_on) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Security
+            prompt_output: security_prompt
+            output_file: security_review.md
+            artifact_prefix: security
+          - name: Quality
+            prompt_output: quality_prompt
+            output_file: quality_review.md
+            artifact_prefix: quality
+          - name: CCS Compliance
+            prompt_output: ccs_prompt
+            output_file: ccs_review.md
+            artifact_prefix: ccs
     permissions:
       contents: read
       pull-requests: read
@@ -215,7 +229,7 @@ jobs:
       DISABLE_TELEMETRY: '1'
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000'
       MAX_THINKING_TOKENS: '8000'
-      REVIEW_OUTPUT_FILE: security_review.md
+      REVIEW_OUTPUT_FILE: ${{ matrix.output_file }}
 
     steps:
       - name: Prepare isolated Claude runtime
@@ -239,7 +253,7 @@ jobs:
           git fetch origin "refs/pull/${{ needs.prepare.outputs.pr_number }}/head"
           git checkout --force FETCH_HEAD
 
-      - name: Run Security Review
+      - name: "Run ${{ matrix.name }} Review"
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
@@ -250,13 +264,13 @@ jobs:
           prompt: |
             think
 
-            You are a SECURITY-focused code reviewer for PR #${{ needs.prepare.outputs.pr_number }} in ${{ github.repository }}.
+            You are a ${{ matrix.name }}-focused code reviewer for PR #${{ needs.prepare.outputs.pr_number }} in ${{ github.repository }}.
             PR HEAD SHA: ${{ needs.prepare.outputs.head_sha }}
-            ${{ needs.prepare.outputs.contributor_source == 'external' && 'EXTERNAL PR: Apply maximum security scrutiny.' || '' }}
+            ${{ needs.prepare.outputs.contributor_source == 'external' && 'EXTERNAL PR: Apply maximum scrutiny.' || '' }}
 
             Follow the repository CLAUDE.md for project-specific guidelines.
 
-            ${{ needs.load-prompts.outputs.security_prompt }}
+            ${{ needs.load-prompts.outputs[matrix.prompt_output] }}
 
             ## IMPORTANT: Writing the Review
             After completing your analysis, use the `Write` tool to write your findings to `${{ env.REVIEW_OUTPUT_FILE }}`.
@@ -275,19 +289,19 @@ jobs:
         run: |
           if [ -s "$REVIEW_OUTPUT_FILE" ]; then exit 0; fi
           EXEC_LOG="$RUNNER_TEMP/claude-execution-output.json"
-          if [ ! -f "$EXEC_LOG" ]; then echo "Security review not available." > "$REVIEW_OUTPUT_FILE"; exit 0; fi
+          if [ ! -f "$EXEC_LOG" ]; then echo "${{ matrix.name }} review not available." > "$REVIEW_OUTPUT_FILE"; exit 0; fi
           EXTRACTED=$(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // empty' "$EXEC_LOG" 2>/dev/null || true)
           if [ -n "$EXTRACTED" ]; then
             printf '%s\n' "$EXTRACTED" > "$REVIEW_OUTPUT_FILE"
           else
-            echo "Security review produced no output." > "$REVIEW_OUTPUT_FILE"
+            echo "${{ matrix.name }} review produced no output." > "$REVIEW_OUTPUT_FILE"
           fi
 
       - name: Upload review output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: security-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
+          name: ${{ matrix.artifact_prefix }}-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
           path: ${{ env.REVIEW_OUTPUT_FILE }}
           retention-days: 3
           if-no-files-found: warn
@@ -296,240 +310,35 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: security-exec-log-pr${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-          path: ${{ runner.temp }}/claude-execution-output.json
-          retention-days: 7
-          if-no-files-found: ignore
-
-  quality-review:
-    name: Quality Review
-    needs: [prepare, load-prompts]
-    if: needs.prepare.result == 'success'
-    timeout-minutes: 10
-    runs-on: ${{ fromJSON(needs.prepare.outputs.runs_on) }}
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-    env:
-      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
-      REVIEW_MODEL: glm-5.1
-      ANTHROPIC_AUTH_TOKEN: ${{ secrets.GLM_API_KEY }}
-      ANTHROPIC_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_OPUS_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_SONNET_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: GLM-4.7-FlashX
-      DISABLE_BUG_COMMAND: '1'
-      DISABLE_ERROR_REPORTING: '1'
-      DISABLE_TELEMETRY: '1'
-      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000'
-      MAX_THINKING_TOKENS: '8000'
-      REVIEW_OUTPUT_FILE: quality_review.md
-
-    steps:
-      - name: Prepare isolated Claude runtime
-        run: |
-          REVIEW_HOME="$RUNNER_TEMP/claude-home"
-          mkdir -p "$REVIEW_HOME" "$RUNNER_TEMP/xdg-config" "$RUNNER_TEMP/xdg-cache" "$RUNNER_TEMP/xdg-state"
-          {
-            echo "HOME=$REVIEW_HOME"
-            echo "XDG_CONFIG_HOME=$RUNNER_TEMP/xdg-config"
-            echo "XDG_CACHE_HOME=$RUNNER_TEMP/xdg-cache"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/xdg-state"
-          } >> "$GITHUB_ENV"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Checkout PR code
-        run: |
-          git fetch origin "refs/pull/${{ needs.prepare.outputs.pr_number }}/head"
-          git checkout --force FETCH_HEAD
-
-      - name: Run Quality Review
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-          github_token: ${{ github.token }}
-          show_full_output: true
-          track_progress: false
-          prompt: |
-            think
-
-            You are a QUALITY-focused code reviewer for PR #${{ needs.prepare.outputs.pr_number }} in ${{ github.repository }}.
-            PR HEAD SHA: ${{ needs.prepare.outputs.head_sha }}
-            ${{ needs.prepare.outputs.contributor_source == 'external' && 'EXTERNAL PR: Apply thorough quality scrutiny.' || '' }}
-
-            Follow the repository CLAUDE.md for project-specific guidelines.
-
-            ${{ needs.load-prompts.outputs.quality_prompt }}
-
-            ## IMPORTANT: Writing the Review
-            After completing your analysis, use the `Write` tool to write your findings to `${{ env.REVIEW_OUTPUT_FILE }}`.
-            Use `Write` tool directly — do NOT use `Edit`.
-            Do NOT post GitHub comments. Do NOT modify source code.
-            IMPORTANT: Do NOT use shell operators (|| &&) or heredoc (<<) in bash commands.
-
-          claude_args: |
-            --bare
-            --model ${{ env.REVIEW_MODEL }}
-            --permission-mode bypassPermissions
-            --max-turns 25
-
-      - name: Fallback extraction
-        if: always() && steps.claude-review.outcome != 'cancelled'
-        run: |
-          if [ -s "$REVIEW_OUTPUT_FILE" ]; then exit 0; fi
-          EXEC_LOG="$RUNNER_TEMP/claude-execution-output.json"
-          if [ ! -f "$EXEC_LOG" ]; then echo "Quality review not available." > "$REVIEW_OUTPUT_FILE"; exit 0; fi
-          EXTRACTED=$(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // empty' "$EXEC_LOG" 2>/dev/null || true)
-          if [ -n "$EXTRACTED" ]; then
-            printf '%s\n' "$EXTRACTED" > "$REVIEW_OUTPUT_FILE"
-          else
-            echo "Quality review produced no output." > "$REVIEW_OUTPUT_FILE"
-          fi
-
-      - name: Upload review output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-          path: ${{ env.REVIEW_OUTPUT_FILE }}
-          retention-days: 3
-          if-no-files-found: warn
-
-      - name: Upload execution log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-exec-log-pr${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-          path: ${{ runner.temp }}/claude-execution-output.json
-          retention-days: 7
-          if-no-files-found: ignore
-
-  ccs-review:
-    name: CCS Compliance Review
-    needs: [prepare, load-prompts]
-    if: needs.prepare.result == 'success'
-    timeout-minutes: 10
-    runs-on: ${{ fromJSON(needs.prepare.outputs.runs_on) }}
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-    env:
-      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
-      REVIEW_MODEL: glm-5.1
-      ANTHROPIC_AUTH_TOKEN: ${{ secrets.GLM_API_KEY }}
-      ANTHROPIC_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_OPUS_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_SONNET_MODEL: glm-5.1
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: GLM-4.7-FlashX
-      DISABLE_BUG_COMMAND: '1'
-      DISABLE_ERROR_REPORTING: '1'
-      DISABLE_TELEMETRY: '1'
-      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000'
-      MAX_THINKING_TOKENS: '8000'
-      REVIEW_OUTPUT_FILE: ccs_review.md
-
-    steps:
-      - name: Prepare isolated Claude runtime
-        run: |
-          REVIEW_HOME="$RUNNER_TEMP/claude-home"
-          mkdir -p "$REVIEW_HOME" "$RUNNER_TEMP/xdg-config" "$RUNNER_TEMP/xdg-cache" "$RUNNER_TEMP/xdg-state"
-          {
-            echo "HOME=$REVIEW_HOME"
-            echo "XDG_CONFIG_HOME=$RUNNER_TEMP/xdg-config"
-            echo "XDG_CACHE_HOME=$RUNNER_TEMP/xdg-cache"
-            echo "XDG_STATE_HOME=$RUNNER_TEMP/xdg-state"
-          } >> "$GITHUB_ENV"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Checkout PR code
-        run: |
-          git fetch origin "refs/pull/${{ needs.prepare.outputs.pr_number }}/head"
-          git checkout --force FETCH_HEAD
-
-      - name: Run CCS Compliance Review
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
-          github_token: ${{ github.token }}
-          show_full_output: true
-          track_progress: false
-          prompt: |
-            think
-
-            You are a CCS COMPLIANCE-focused code reviewer for PR #${{ needs.prepare.outputs.pr_number }} in ${{ github.repository }}.
-            PR HEAD SHA: ${{ needs.prepare.outputs.head_sha }}
-            ${{ needs.prepare.outputs.contributor_source == 'external' && 'EXTERNAL PR: Verify CCS conventions are strictly followed.' || '' }}
-
-            Follow the repository CLAUDE.md for project-specific guidelines.
-
-            ${{ needs.load-prompts.outputs.ccs_prompt }}
-
-            ## IMPORTANT: Writing the Review
-            After completing your analysis, use the `Write` tool to write your findings to `${{ env.REVIEW_OUTPUT_FILE }}`.
-            Use `Write` tool directly — do NOT use `Edit`.
-            Do NOT post GitHub comments. Do NOT modify source code.
-            IMPORTANT: Do NOT use shell operators (|| &&) or heredoc (<<) in bash commands.
-
-          claude_args: |
-            --bare
-            --model ${{ env.REVIEW_MODEL }}
-            --permission-mode bypassPermissions
-            --max-turns 25
-
-      - name: Fallback extraction
-        if: always() && steps.claude-review.outcome != 'cancelled'
-        run: |
-          if [ -s "$REVIEW_OUTPUT_FILE" ]; then exit 0; fi
-          EXEC_LOG="$RUNNER_TEMP/claude-execution-output.json"
-          if [ ! -f "$EXEC_LOG" ]; then echo "CCS compliance review not available." > "$REVIEW_OUTPUT_FILE"; exit 0; fi
-          EXTRACTED=$(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | last // empty' "$EXEC_LOG" 2>/dev/null || true)
-          if [ -n "$EXTRACTED" ]; then
-            printf '%s\n' "$EXTRACTED" > "$REVIEW_OUTPUT_FILE"
-          else
-            echo "CCS compliance review produced no output." > "$REVIEW_OUTPUT_FILE"
-          fi
-
-      - name: Upload review output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ccs-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-          path: ${{ env.REVIEW_OUTPUT_FILE }}
-          retention-days: 3
-          if-no-files-found: warn
-
-      - name: Upload execution log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ccs-exec-log-pr${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
+          name: ${{ matrix.artifact_prefix }}-exec-log-pr${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
           path: ${{ runner.temp }}/claude-execution-output.json
           retention-days: 7
           if-no-files-found: ignore
 
   aggregate:
-    name: Aggregate and Publish Review
-    needs: [prepare, security-review, quality-review, ccs-review]
+    name: Merge & Publish Review
+    needs: [prepare, load-prompts, review]
     if: always() && needs.prepare.result == 'success'
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: write
     env:
+      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
       REVIEW_MODEL: glm-5.1
+      ANTHROPIC_AUTH_TOKEN: ${{ secrets.GLM_API_KEY }}
+      ANTHROPIC_MODEL: glm-5.1
+      ANTHROPIC_DEFAULT_OPUS_MODEL: glm-5.1
+      ANTHROPIC_DEFAULT_SONNET_MODEL: glm-5.1
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: GLM-4.7-FlashX
+      DISABLE_BUG_COMMAND: '1'
+      DISABLE_ERROR_REPORTING: '1'
+      DISABLE_TELEMETRY: '1'
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000'
+      MAX_THINKING_TOKENS: '16000'
+      REVIEW_OUTPUT_FILE: merged_review.md
       REVIEW_COMMENT_FILE: .ccs-ai-review-comment.md
 
     steps:
@@ -548,34 +357,127 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
-      - name: Download security review
+      - name: Download all review artifacts
         uses: actions/download-artifact@v4
         with:
-          name: security-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
+          pattern: "*-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}"
+          merge-multiple: true
         continue-on-error: true
 
-      - name: Download quality review
-        uses: actions/download-artifact@v4
+      - name: Prepare isolated Claude runtime
+        run: |
+          REVIEW_HOME="$RUNNER_TEMP/claude-home"
+          mkdir -p "$REVIEW_HOME" "$RUNNER_TEMP/xdg-config" "$RUNNER_TEMP/xdg-cache" "$RUNNER_TEMP/xdg-state"
+          rm -f "$REVIEW_OUTPUT_FILE" "$REVIEW_COMMENT_FILE"
+          {
+            echo "HOME=$REVIEW_HOME"
+            echo "XDG_CONFIG_HOME=$RUNNER_TEMP/xdg-config"
+            echo "XDG_CACHE_HOME=$RUNNER_TEMP/xdg-cache"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/xdg-state"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          name: quality-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-        continue-on-error: true
+          fetch-depth: 0
 
-      - name: Download CCS review
-        uses: actions/download-artifact@v4
-        with:
-          name: ccs-review-${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-        continue-on-error: true
+      - name: Checkout PR code
+        run: |
+          git fetch origin "refs/pull/${{ needs.prepare.outputs.pr_number }}/head"
+          git checkout --force FETCH_HEAD
 
-      - name: Merge reviews into unified comment
+      - name: Load orchestrator prompt
+        id: orchestrator
+        env:
+          BASE_REF: ${{ github.base_ref || 'dev' }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1 2>/dev/null || true
+          ORCH_PROMPT=$(git show "origin/${BASE_REF}:.github/review-prompt.md" 2>/dev/null || echo "")
+          if [ -z "$ORCH_PROMPT" ]; then
+            echo "::warning::review-prompt.md not found — using fallback merge"
+            ORCH_PROMPT="Merge the 3 review outputs below into a single unified review. Deduplicate findings by file:line (highest severity wins). Produce a final assessment: APPROVED, APPROVED WITH NOTES, or CHANGES REQUESTED."
+          fi
+          DELIM="ORCH_$(openssl rand -hex 16)"
+          echo "prompt<<${DELIM}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$ORCH_PROMPT" >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare review inputs
+        id: review-inputs
         run: |
           SECURITY=$(cat security_review.md 2>/dev/null || echo "Security review not available.")
           QUALITY=$(cat quality_review.md 2>/dev/null || echo "Quality review not available.")
           CCS=$(cat ccs_review.md 2>/dev/null || echo "CCS compliance review not available.")
 
+          # Write combined input file for orchestrator
+          {
+            echo "## Security Review Output"
+            echo ""
+            printf '%s\n' "$SECURITY"
+            echo ""
+            echo "---"
+            echo ""
+            echo "## Quality Review Output"
+            echo ""
+            printf '%s\n' "$QUALITY"
+            echo ""
+            echo "---"
+            echo ""
+            echo "## CCS Compliance Review Output"
+            echo ""
+            printf '%s\n' "$CCS"
+          } > review_inputs.md
+
+      - name: Run Orchestrator Merge
+        id: claude-merge
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.GLM_API_KEY }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          show_full_output: true
+          track_progress: false
+          prompt: |
+            think
+
+            You are the review orchestrator for PR #${{ needs.prepare.outputs.pr_number }} in ${{ github.repository }}.
+            PR HEAD SHA: ${{ needs.prepare.outputs.head_sha }}
+            CONTRIBUTOR: @${{ needs.prepare.outputs.author_login }}
+            ${{ needs.prepare.outputs.contributor_source == 'external' && 'EXTERNAL CONTRIBUTOR PR.' || 'INTERNAL PR.' }}
+
+            ${{ steps.orchestrator.outputs.prompt }}
+
+            ## Review Inputs from 3 Parallel Reviewers
+
+            Read the file `review_inputs.md` for the raw outputs from all 3 reviewers (security, quality, CCS compliance).
+
+            ## IMPORTANT: Writing the Final Review
+            After merging and assessing, use the `Write` tool to write the final unified review to `${{ env.REVIEW_OUTPUT_FILE }}`.
+            Use `Write` tool directly — do NOT use `Edit`.
+            Do NOT post GitHub comments yourself. The workflow will publish the saved file.
+            Do NOT modify any source code files.
+            IMPORTANT: Do NOT use shell operators (|| &&) or heredoc (<<) in bash commands.
+
+            End your review with:
+            > Parallel review by `${{ env.REVIEW_MODEL }}` (3 focused reviewers + orchestrator merge)
+
+          claude_args: |
+            --bare
+            --model ${{ env.REVIEW_MODEL }}
+            --permission-mode bypassPermissions
+            --max-turns 15
+
+      - name: Fallback merge (if orchestrator fails)
+        if: always() && steps.claude-merge.outcome != 'cancelled'
+        run: |
+          if [ -s "$REVIEW_OUTPUT_FILE" ]; then exit 0; fi
+          echo "::warning::Orchestrator merge failed — using simple concatenation fallback"
+          SECURITY=$(cat security_review.md 2>/dev/null || echo "Security review not available.")
+          QUALITY=$(cat quality_review.md 2>/dev/null || echo "Quality review not available.")
+          CCS=$(cat ccs_review.md 2>/dev/null || echo "CCS compliance review not available.")
           {
             echo "# Parallel AI Code Review"
             echo ""
-            echo "> Reviews run in parallel by 3 focused reviewers."
+            echo "> [!] Orchestrator merge failed — raw reviewer outputs below."
             echo ""
             echo "---"
             echo ""
@@ -595,10 +497,8 @@ jobs:
             echo ""
             printf '%s\n' "$CCS"
             echo ""
-            echo "---"
-            echo ""
-            printf '> Parallel review by \`%s\` (3 focused reviewers)\n' "$REVIEW_MODEL"
-          } > merged_review.md
+            printf '> Parallel review by `%s` (fallback — orchestrator unavailable)\n' "$REVIEW_MODEL"
+          } > "$REVIEW_OUTPUT_FILE"
 
       - name: Publish review comment
         if: always()
@@ -611,14 +511,14 @@ jobs:
             pr:${{ needs.prepare.outputs.pr_number }}
             sha:${{ needs.prepare.outputs.head_sha }} -->
         run: |
-          if [ ! -s merged_review.md ]; then
+          if [ ! -s "$REVIEW_OUTPUT_FILE" ]; then
             echo "::error::No merged review content available"
             exit 1
           fi
 
           {
             printf '%s\n\n' "$REVIEW_MARKER"
-            cat merged_review.md
+            cat "$REVIEW_OUTPUT_FILE"
           } > "$REVIEW_COMMENT_FILE"
 
           COMMENTS_JSON="$(gh api "repos/${{ github.repository }}/issues/${{ needs.prepare.outputs.pr_number }}/comments?per_page=100")"
@@ -659,10 +559,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: merged-review-pr${{ needs.prepare.outputs.pr_number }}-run${{ github.run_id }}
-          path: merged_review.md
+          path: ${{ env.REVIEW_OUTPUT_FILE }}
           retention-days: 7
           if-no-files-found: warn
 
       - name: Cleanup
         if: always()
-        run: rm -f "$REVIEW_COMMENT_FILE" merged_review.md security_review.md quality_review.md ccs_review.md
+        run: rm -f "$REVIEW_COMMENT_FILE" "$REVIEW_OUTPUT_FILE" security_review.md quality_review.md ccs_review.md review_inputs.md
