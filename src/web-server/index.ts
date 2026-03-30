@@ -63,6 +63,10 @@ export async function startServer(options: ServerOptions): Promise<ServerInstanc
   // Auth middleware (protects API routes when enabled)
   app.use(authMiddleware);
 
+  // CLIProxy local reverse proxy (avoids cross-origin issues in Docker)
+  const cliproxyLocalProxy = (await import('./routes/cliproxy-local-proxy')).default;
+  app.use('/api/cliproxy-local', cliproxyLocalProxy);
+
   // REST API routes (modularized)
   const { apiRoutes } = await import('./routes/index');
   app.use('/api', apiRoutes);
@@ -78,10 +82,6 @@ export async function startServer(options: ServerOptions): Promise<ServerInstanc
   // Usage analytics routes
   const { usageRoutes } = await import('./usage-routes');
   app.use('/api/usage', usageRoutes);
-
-  // CLIProxy local reverse proxy (avoids cross-origin issues in Docker)
-  const cliproxyLocalProxy = (await import('./routes/cliproxy-local-proxy')).default;
-  app.use('/cliproxy-local', cliproxyLocalProxy);
 
   // Dev mode: use Vite middleware for HMR
   if (options.dev) {
