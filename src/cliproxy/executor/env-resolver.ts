@@ -20,7 +20,11 @@ import { applyExtendedContextConfig } from '../config/extended-context-config';
 import { CLIProxyProvider } from '../types';
 import { CompositeTierConfig } from '../../config/unified-config-types';
 import { getWebSearchHookEnv } from '../../utils/websearch-manager';
-import { getImageAnalysisHookEnv } from '../../utils/hooks/get-image-analysis-hook-env';
+import {
+  applyImageAnalysisRuntimeOverrides,
+  getImageAnalysisHookEnv,
+  resolveImageAnalysisRuntimeConnection,
+} from '../../utils/hooks/get-image-analysis-hook-env';
 import { resolveImageAnalysisRuntimeStatus } from '../../utils/hooks/image-analysis-runtime-status';
 import { hasImageAnalysisProfileHook } from '../../utils/hooks/image-analyzer-profile-hook-injector';
 import { hasImageAnalyzerHook } from '../../utils/hooks/image-analyzer-hook-installer';
@@ -30,6 +34,7 @@ import { ToolSanitizationProxy } from '../tool-sanitization-proxy';
 import { HttpsTunnelProxy } from '../https-tunnel-proxy';
 import { MODEL_ENV_VAR_KEYS, normalizeModelIdForProvider } from '../model-id-normalizer';
 import type { ProxyTarget } from '../proxy-target-resolver';
+import { getEffectiveApiKey } from '../auth-token-manager';
 import { isSettings, type Settings } from '../../types/config';
 
 export interface RemoteProxyConfig {
@@ -76,6 +81,7 @@ interface CliproxyImageAnalysisDeps {
   hasImageAnalysisProfileHook: typeof hasImageAnalysisProfileHook;
   hasImageAnalyzerHook: typeof hasImageAnalyzerHook;
   resolveImageAnalysisRuntimeStatus: typeof resolveImageAnalysisRuntimeStatus;
+  getLocalRuntimeApiKey: typeof getEffectiveApiKey;
 }
 
 interface ResolveCliproxyImageAnalysisEnvOptions {
@@ -84,6 +90,7 @@ interface ResolveCliproxyImageAnalysisEnvOptions {
   profileSettingsPath?: string;
   isComposite?: boolean;
   proxyTarget: ProxyTarget;
+  tunnelPort?: number | null;
   proxyReachable: boolean;
 }
 
@@ -97,6 +104,7 @@ const defaultCliproxyImageAnalysisDeps: CliproxyImageAnalysisDeps = {
   hasImageAnalysisProfileHook,
   hasImageAnalyzerHook,
   resolveImageAnalysisRuntimeStatus,
+  getLocalRuntimeApiKey: getEffectiveApiKey,
 };
 
 const CODEX_EFFORT_SUFFIX_REGEX = /^(.*)-(xhigh|high|medium)$/i;
@@ -190,7 +198,24 @@ export async function resolveCliproxyImageAnalysisEnv(
     };
   }
 
-  return { env, warning: null };
+  const runtimeConnection = resolveImageAnalysisRuntimeConnection({
+    proxyTarget: options.proxyTarget,
+    tunnelPort: options.tunnelPort,
+  });
+
+  return {
+    env: applyImageAnalysisRuntimeOverrides(env, {
+      backendId: status.backendId,
+      model: status.model,
+      runtimePath: status.runtimePath,
+      baseUrl: runtimeConnection.baseUrl,
+      apiKey: options.proxyTarget.isRemote
+        ? runtimeConnection.apiKey
+        : resolvedDeps.getLocalRuntimeApiKey(),
+      allowSelfSigned: runtimeConnection.allowSelfSigned,
+    }),
+    warning: null,
+  };
 }
 
 /**

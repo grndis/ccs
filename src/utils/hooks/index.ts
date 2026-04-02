@@ -6,7 +6,19 @@
  * @module utils/hooks
  */
 
-export { getImageAnalysisHookEnv } from './get-image-analysis-hook-env';
+import {
+  hasImageAnalyzerHook as hasInstalledImageAnalyzerHook,
+  installImageAnalyzerHook as installSharedImageAnalyzerHook,
+} from './image-analyzer-hook-installer';
+
+export {
+  getImageAnalysisHookEnv,
+  applyImageAnalysisRuntimeOverrides,
+  resolveImageAnalysisRuntimeConnection,
+  type ImageAnalysisRuntimeOverrides,
+  type ImageAnalysisRuntimeConnection,
+  type ResolveImageAnalysisRuntimeConnectionOptions,
+} from './get-image-analysis-hook-env';
 export {
   canonicalizeImageAnalysisConfig,
   resolveImageAnalysisStatus,
@@ -26,3 +38,7 @@ export {
   uninstallImageAnalyzerHook,
 } from './image-analyzer-hook-installer';
 export { ensureProfileHooks as ensureImageAnalyzerProfileHooks } from './image-analyzer-profile-hook-injector';
+
+export function prepareImageAnalysisFallbackHook(): boolean {
+  return hasInstalledImageAnalyzerHook() || installSharedImageAnalyzerHook();
+}

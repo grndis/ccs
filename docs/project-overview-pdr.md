@@ -1,6 +1,6 @@
 # CCS Product Development Requirements (PDR)
 
-Last Updated: 2026-03-24
+Last Updated: 2026-04-02
 
 ## Product Overview
 
@@ -10,7 +10,7 @@ Last Updated: 2026-03-24
 
 **Description**: CLI wrapper enabling seamless switching between multiple Claude accounts and alternative AI providers (GLM, Gemini, Codex, OpenRouter, Qwen, Kimi, DeepSeek) with a React-based dashboard for configuration management. Supports both local and remote CLIProxyAPI instances, hybrid quota management, and official Claude channel runtime setup for Telegram, Discord, and iMessage.
 
-**Current Version**: v7.34.x (Image Analysis Hook + Performance Improvements)
+**Current Version**: v7.34.x+ (First-class ImageAnalysis MCP tooling, WebSearch MCP, performance improvements)
 
 ---
 
@@ -36,8 +36,9 @@ CCS provides:
 4. **API Profiles**: GLM, Kimi, OpenRouter, any Anthropic-compatible API
 5. **Visual Dashboard**: React SPA for configuration management
 6. **Automatic WebSearch**: First-class local WebSearch tool with deterministic provider chain for third-party providers
-7. **Usage Analytics**: Token tracking, cost analysis, model breakdown
-8. **Official Claude Channels**: Runtime auto-enable plus dashboard token/config flow for Telegram, Discord, and macOS-only iMessage
+7. **Automatic Image Analysis**: First-class local ImageAnalysis tool with direct provider routing for third-party profiles
+8. **Usage Analytics**: Token tracking, cost analysis, model breakdown
+9. **Official Claude Channels**: Runtime auto-enable plus dashboard token/config flow for Telegram, Discord, and macOS-only iMessage
 
 ---
 
@@ -98,6 +99,13 @@ CCS provides:
 - Support Exa, Tavily, Brave, and DuckDuckGo real search backends
 - Keep Gemini CLI, OpenCode, and Grok as optional legacy fallback
 - Graceful fallback chain
+
+### FR-007A: First-Class Image Analysis
+- Expose a CCS-managed local `ImageAnalysis` MCP tool for third-party profiles that need provider-backed vision
+- Resolve the provider route before launch and send requests directly to `/api/provider/<backend>/v1/messages`
+- Use editable prompt templates for `default`, `screenshot`, and `document` analysis modes
+- Keep the old `Read` hook as compatibility fallback only, not the primary user experience
+- Fall back to native `Read` without failing the whole launch when the managed runtime is unavailable
 
 ### FR-008: Remote CLIProxy Support
 - Connect to remote CLIProxyAPI instances
@@ -277,10 +285,11 @@ CCS provides:
 - [x] Entrypoint with privilege dropping
 
 ### v7.34 Release (Complete)
-- [x] Image Analysis Hook for vision model proxying
-- [x] Auto-injection for agy, gemini, codex, cliproxy profiles
-- [x] Skip hook for Claude Sub accounts (native vision)
-- [x] CLIProxy fallback with deprecated block-image-read
+- [x] First-class `ImageAnalysis` MCP tool for third-party launches
+- [x] Direct provider-scoped routing for image analysis requests
+- [x] Prompt template selection for default / screenshot / document flows
+- [x] Hook fallback retained only for compatibility
+- [x] Non-fatal native `Read` fallback when managed runtime is unavailable
 - [x] `ccs config image-analysis` CLI command
 - [x] Doctor integration for hook validation
 - [x] 791-line E2E test suite for image analysis

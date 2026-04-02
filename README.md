@@ -151,6 +151,7 @@ The dashboard provides visual management for all account types:
 > Setting `websearch.enabled: false` disables the managed local runtime, but CCS still suppresses Anthropic's native `WebSearch` on third-party backends because those providers cannot execute it correctly.
 
 > **Image backend visibility:** `ccs config image-analysis --set-fallback <backend>` defines the backend CCS should use when a profile alias cannot be inferred directly. Use `--set-profile-backend <profile> <backend>` and `--clear-profile-backend <profile>` for explicit per-profile mappings. In the dashboard, the global `Settings -> Image` section now shows the shared backend routing state, while each profile editor keeps a compact `Image` status card that links back to those global controls.
+> Third-party launches now expose a first-class local `ImageAnalysis` MCP tool when the runtime is ready, route requests directly to the resolved CCS provider path, and fall back to native `Read` when the managed runtime is unavailable.
 
 > **Copilot config behavior:** Opening the dashboard or other read-only Copilot endpoints does not rewrite `~/.ccs/copilot.settings.json`. If CCS detects deprecated Copilot model IDs such as `raptor-mini`, it shows warnings immediately and only persists replacements when you explicitly save the Copilot configuration.
 
@@ -684,6 +685,38 @@ websearch:
 > Set `CCS_WEBSEARCH_TRACE=1` to write correlated launch, MCP, provider, and headless summary records to `~/.ccs/logs/websearch-trace.jsonl`. That trace is designed to answer whether CCS exposed the managed tool, whether Claude called it, which provider won, and when a headless run likely bypassed it via `Bash` or `WebFetch`.
 
 See [docs/websearch.md](./docs/websearch.md) for detailed configuration and troubleshooting.
+
+<br>
+
+## Image Analysis
+
+Third-party profiles (Gemini, Codex, GLM bridge profiles, Copilot, and similar routes) now use a first-class local `ImageAnalysis` MCP tool instead of relying on a denied `Read` hook as the normal experience.
+
+### How It Works
+
+| Profile Type | Image Method |
+|--------------|--------------|
+| Claude (native) | Native Claude vision / native `Read` |
+| Third-party profiles | CCS local MCP `ImageAnalysis` tool when available |
+| Third-party when runtime unavailable | Native `Read` fallback |
+
+### Direct Provider Routing
+
+When the managed tool is used, CCS resolves the backend before launch and posts image-analysis requests directly to the provider-scoped CCS route:
+
+```text
+/api/provider/<backend>/v1/messages
+```
+
+That path goes from Claude -> `ccs-image-analysis.ImageAnalysis` -> CCS/CLIProxy provider routing. It does not bounce through Claude Code, a helper CLI, or a second model wrapper.
+
+### Prompting and Fallback
+
+CCS appends a short steering hint telling Claude to prefer `ImageAnalysis` over `Read` for local image and PDF files. The tool uses editable prompt templates from `~/.ccs/prompts/image-analysis/` and automatically picks `default`, `screenshot`, or `document`.
+
+If the local runtime, auth, or proxy path is unavailable, CCS keeps the launch non-fatal and falls back to native `Read`. The legacy `Read` hook remains only as a compatibility fallback when CCS can install it safely.
+
+See [docs/image-analysis.md](./docs/image-analysis.md) for configuration, routing details, and troubleshooting.
 
 <br>
 

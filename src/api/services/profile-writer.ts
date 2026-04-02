@@ -9,6 +9,7 @@ import { expandPath } from '../../utils/helpers';
 import { validateApiName } from './validation-service';
 import { mutateUnifiedConfig, isUnifiedMode } from '../../config/unified-config-loader';
 import { ensureWebSearchMcpOrThrow } from '../../utils/websearch-manager';
+import { ensureImageAnalysisMcpOrThrow } from '../../utils/image-analysis';
 import type { TargetType } from '../../targets/target-adapter';
 import { resolveDroidProvider } from '../../targets/droid-provider';
 import { isReservedName } from '../../config/reserved-names';
@@ -127,6 +128,7 @@ function createSettingsFile(
 
   try {
     ensureWebSearchMcpOrThrow();
+    ensureImageAnalysisMcpOrThrow();
   } catch (error) {
     rollbackSettingsFile(settingsPath, previousSettingsContent, settingsExisted);
     throw error;
@@ -216,6 +218,7 @@ function createApiProfileUnified(
 
   try {
     ensureWebSearchMcpOrThrow();
+    ensureImageAnalysisMcpOrThrow();
   } catch (error) {
     rollbackSettingsFile(settingsPath, previousSettingsContent, settingsExisted);
     throw error;

@@ -578,7 +578,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   // Image Analysis
   printSubSection(
-    'Image Analysis (CLIProxy vision)',
+    'Image Analysis (first-class local tool)',
     [
       ['ccs config image-analysis', 'Show current settings'],
       ['ccs config image-analysis --enable', 'Enable for CLIProxy providers'],
@@ -586,9 +586,9 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs config image-analysis --timeout 120', 'Set analysis timeout'],
       ['ccs config image-analysis --set-model <p> <m>', 'Set provider model'],
       ['', ''],
-      ['Note:', 'When enabled, images/PDFs are analyzed via vision models'],
-      ['', 'instead of passing raw data to Claude. Works with CLIProxy'],
-      ['', 'providers (agy, gemini, codex, kiro, ghcp).'],
+      ['Note:', 'When ready, third-party launches expose the local ImageAnalysis MCP tool'],
+      ['', 'and route requests directly to the resolved CCS provider path.'],
+      ['', 'If runtime/auth/proxy is unavailable, CCS falls back to native Read.'],
     ],
     writeLine
   );

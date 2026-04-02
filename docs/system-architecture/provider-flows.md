@@ -537,29 +537,29 @@ Image Analysis Hook enables vision model proxying through CLIProxy with automati
   Claude CLI processes image request
         |
         v
-  Hook intercepts image request
+  Claude prefers ImageAnalysis MCP tool
         |
         v
-  Vision Model Proxying (via CLIProxyAPI)
+  CCS provider-backed image analysis
         |
-        +---> Gemini, Codex, AGY support vision
+        +---> Provider route resolved before launch
         |
-        +---> Kiro (Claude native vision)
+        +---> Direct request to /api/provider/<backend>/v1/messages
         |
-        +---> Skip for Claude Sub accounts (native vision)
+        +---> Native Read fallback if runtime/auth/proxy is unavailable
         |
         v
-  Vision response returned to Claude CLI
+  Text description returned to Claude CLI
 ```
 
-### Hook Environment
+### Runtime Environment
 
 ```typescript
 // getImageAnalysisHookEnv()
 {
-  ANTHROPIC_IMAGE_HOOK_URL: 'http://localhost:8317/api/image-analysis',
-  // or for remote proxy:
-  ANTHROPIC_IMAGE_HOOK_URL: 'https://proxy.example.com:8317/api/image-analysis',
+  CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL: 'http://127.0.0.1:8317',
+  CCS_IMAGE_ANALYSIS_RUNTIME_PATH: '/api/provider/agy',
+  CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY: 'ccs-internal-managed',
 }
 ```
 
@@ -567,12 +567,12 @@ Image Analysis Hook enables vision model proxying through CLIProxy with automati
 
 | Provider | Vision Support | Notes |
 |----------|---|---|
-| Gemini | ✓ | Via CLIProxy image analysis |
-| Codex | ✓ | Via CLIProxy image analysis |
-| Antigravity | ✓ | Via CLIProxy image analysis |
-| Kiro | ✓ | Native Claude vision (no proxy needed) |
-| Copilot | ✗ | Not supported |
-| GLM/Kimi | ✗ | Requires direct API implementation |
+| Gemini | ✓ | Via CCS ImageAnalysis provider route |
+| Codex | ✓ | Via CCS ImageAnalysis provider route |
+| Antigravity | ✓ | Via CCS ImageAnalysis provider route |
+| Kiro | ✓ | Via mapped CCS provider route when configured |
+| Copilot | ✓ | Via mapped ghcp provider route |
+| GLM/Kimi | ✓ | Via explicit or fallback backend mapping |
 
 ---
 

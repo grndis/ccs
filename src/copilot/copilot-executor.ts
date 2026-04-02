@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { CopilotConfig } from '../config/unified-config-types';
 import { getGlobalEnvConfig } from '../config/unified-config-loader';
 import { ensureCliproxyService } from '../cliproxy';
+import { getEffectiveApiKey } from '../cliproxy/auth-token-manager';
 import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 import { checkAuthStatus, isCopilotApiInstalled } from './copilot-auth';
 import { isDaemonRunning, startDaemon } from './copilot-daemon';
@@ -22,13 +23,24 @@ import {
   createWebSearchTraceContext,
   syncWebSearchMcpToConfigDir,
 } from '../utils/websearch-manager';
-import { getImageAnalysisHookEnv, resolveImageAnalysisRuntimeStatus } from '../utils/hooks';
+import {
+  appendThirdPartyImageAnalysisToolArgs,
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+} from '../utils/image-analysis';
+import {
+  applyImageAnalysisRuntimeOverrides,
+  getImageAnalysisHookEnv,
+  resolveImageAnalysisRuntimeConnection,
+  resolveImageAnalysisRuntimeStatus,
+} from '../utils/hooks';
 import { stripClaudeCodeEnv } from '../utils/shell-executor';
 
 interface CopilotImageAnalysisDeps {
   ensureCliproxyService: typeof ensureCliproxyService;
   getImageAnalysisHookEnv: typeof getImageAnalysisHookEnv;
   resolveImageAnalysisRuntimeStatus: typeof resolveImageAnalysisRuntimeStatus;
+  getLocalRuntimeApiKey: typeof getEffectiveApiKey;
 }
 
 interface CopilotImageAnalysisResolution {
@@ -96,6 +108,7 @@ export async function resolveCopilotImageAnalysisEnv(
     ensureCliproxyService,
     getImageAnalysisHookEnv,
     resolveImageAnalysisRuntimeStatus,
+    getLocalRuntimeApiKey: getEffectiveApiKey,
     ...deps,
   };
 
@@ -141,7 +154,20 @@ export async function resolveCopilotImageAnalysisEnv(
     }
   }
 
-  return { env, warning: null };
+  const runtimeConnection = resolveImageAnalysisRuntimeConnection();
+  return {
+    env: applyImageAnalysisRuntimeOverrides(env, {
+      backendId: status.backendId,
+      model: status.model,
+      runtimePath: status.runtimePath,
+      baseUrl: runtimeConnection.baseUrl,
+      apiKey: runtimeConnection.proxyTarget.isRemote
+        ? runtimeConnection.apiKey
+        : resolvedDeps.getLocalRuntimeApiKey(),
+      allowSelfSigned: runtimeConnection.allowSelfSigned,
+    }),
+    warning: null,
+  };
 }
 
 /**
@@ -231,11 +257,25 @@ export async function executeCopilotProfile(
   // Get global env vars (DISABLE_TELEMETRY, etc.) for third-party profiles
   const globalEnvConfig = getGlobalEnvConfig();
   const globalEnv = globalEnvConfig.enabled ? globalEnvConfig.env : {};
+  const imageAnalysisMcpReady = ensureImageAnalysisMcpOrThrow();
+  syncWebSearchMcpToConfigDir(claudeConfigDir);
+  syncImageAnalysisMcpToConfigDir(claudeConfigDir);
 
   // Merge with current environment (global env first, copilot overrides, then hook env vars)
   const webSearchEnv = getWebSearchHookEnv();
-  const { env: imageAnalysisEnv, warning: imageAnalysisWarning } =
-    await resolveCopilotImageAnalysisEnv();
+  const imageAnalysisResolution = await resolveCopilotImageAnalysisEnv();
+  const imageAnalysisProvisioningFailed =
+    !imageAnalysisMcpReady && imageAnalysisResolution.env.CCS_IMAGE_ANALYSIS_ENABLED === '1';
+  const imageAnalysisWarning = imageAnalysisProvisioningFailed
+    ? 'ImageAnalysis MCP provisioning failed. This session will use native Read.'
+    : imageAnalysisResolution.warning;
+  const imageAnalysisEnv = imageAnalysisProvisioningFailed
+    ? {
+        ...imageAnalysisResolution.env,
+        CCS_CURRENT_PROVIDER: '',
+        CCS_IMAGE_ANALYSIS_SKIP: '1',
+      }
+    : imageAnalysisResolution.env;
   const env = stripClaudeCodeEnv({
     ...process.env,
     ...globalEnv,
@@ -251,11 +291,12 @@ export async function executeCopilotProfile(
   }
   console.log('');
 
-  syncWebSearchMcpToConfigDir(claudeConfigDir);
-
   // Spawn Claude CLI
   return new Promise((resolve) => {
-    const launchArgs = appendThirdPartyWebSearchToolArgs(claudeArgs);
+    const imageAnalysisArgs = imageAnalysisMcpReady
+      ? appendThirdPartyImageAnalysisToolArgs(claudeArgs)
+      : claudeArgs;
+    const launchArgs = appendThirdPartyWebSearchToolArgs(imageAnalysisArgs);
     const traceEnv = createWebSearchTraceContext({
       launcher: 'copilot.executor',
       args: launchArgs,

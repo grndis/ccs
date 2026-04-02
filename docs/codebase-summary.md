@@ -54,7 +54,7 @@ src/
 │   │   └── [subcommand files...]
 │   ├── cliproxy-command.ts   # CLIProxy subcommand handling
 │   ├── config-command.ts     # Config management commands
-│   ├── config-image-analysis-command.ts  # Image analysis hook config (NEW v7.34)
+│   ├── config-image-analysis-command.ts  # First-class ImageAnalysis config (NEW v7.34)
 │   ├── named-command-router.ts  # Reusable named-command dispatcher
 │   ├── doctor-command.ts     # Health diagnostics
 │   ├── env-command.ts        # Export shell env vars for third-party tools (v7.39)
@@ -149,7 +149,7 @@ src/
 │   ├── index.ts              # Barrel export
 │   ├── checks/               # Diagnostic checks
 │   │   ├── index.ts
-│   │   └── image-analysis-check.ts  # Image hook validation (NEW v7.34)
+│   │   └── image-analysis-check.ts  # ImageAnalysis runtime validation (NEW v7.34)
 │   └── repair/               # Auto-repair logic
 │       └── index.ts
 │
@@ -169,15 +169,17 @@ src/
 │   │   └── spinners.ts       # Progress spinners
 │   ├── websearch/            # Search tool integrations
 │   │   └── index.ts
-│   ├── hooks/                # Claude Code hooks (NEW v7.34)
+│   ├── hooks/                # Claude Code compatibility hooks (NEW v7.34)
 │   │   ├── index.ts
 │   │   ├── image-analyzer-hook-installer.ts
 │   │   ├── image-analyzer-hook-configuration.ts
 │   │   ├── image-analyzer-profile-hook-injector.ts
 │   │   └── get-image-analysis-hook-env.ts
-│   ├── image-analysis/       # Image analysis hook utilities (NEW v7.34)
+│   ├── image-analysis/       # ImageAnalysis MCP/runtime utilities (NEW v7.34)
 │   │   ├── index.ts
-│   │   └── hook-installer.ts
+│   │   ├── hook-installer.ts
+│   │   ├── mcp-installer.ts
+│   │   └── claude-tool-args.ts
 │   └── [utility files...]
 │
 └── web-server/               # Express web server (heavily modularized)
@@ -636,4 +638,5 @@ tests/
 - [System Architecture](./system-architecture/index.md) - High-level architecture diagrams
 - [Project Roadmap](./project-roadmap.md) - Modularization phases and future work
 - [WebSearch](./websearch.md) - WebSearch feature documentation
+- [Image Analysis](./image-analysis.md) - First-class ImageAnalysis runtime documentation
 - [CLAUDE.md](../CLAUDE.md) - AI-facing development guidance

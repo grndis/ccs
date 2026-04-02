@@ -58,8 +58,12 @@ import {
   appendThirdPartyWebSearchToolArgs,
   createWebSearchTraceContext,
 } from '../../utils/websearch-manager';
+import {
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+  appendThirdPartyImageAnalysisToolArgs,
+} from '../../utils/image-analysis';
 import { loadOrCreateUnifiedConfig, getThinkingConfig } from '../../config/unified-config-loader';
-import { installImageAnalyzerHook } from '../../utils/hooks';
 import { HttpsTunnelProxy } from '../https-tunnel-proxy';
 import { isKiroAuthMethod, KiroAuthMethod, normalizeKiroAuthMethod } from '../auth/auth-types';
 import { resolveProfileContinuityInheritance } from '../../auth/profile-continuity-inheritance';
@@ -205,10 +209,8 @@ export async function execClaudeWithCLIProxy(
 
   // Setup first-class CCS WebSearch runtime
   ensureWebSearchMcpOrThrow();
+  const imageAnalysisMcpReady = ensureImageAnalysisMcpOrThrow();
   displayWebSearchStatus();
-
-  // Sync image analyzer hook from npm package to ~/.ccs/hooks/
-  installImageAnalyzerHook();
 
   const providerConfig = getProviderConfig(provider);
   log(`Provider: ${providerConfig.displayName}`);
@@ -841,15 +843,27 @@ export async function execClaudeWithCLIProxy(
           protocol: 'http' as const,
           isRemote: false as const,
         };
-  const { env: imageAnalysisEnv, warning: imageAnalysisWarning } =
-    await resolveCliproxyImageAnalysisEnv({
-      profileName: cfg.profileName || provider,
-      provider,
-      profileSettingsPath: cfg.customSettingsPath,
-      isComposite: cfg.isComposite,
-      proxyTarget: imageAnalysisProxyTarget,
-      proxyReachable: true,
-    });
+  const imageAnalysisResolution = await resolveCliproxyImageAnalysisEnv({
+    profileName: cfg.profileName || provider,
+    provider,
+    profileSettingsPath: cfg.customSettingsPath,
+    isComposite: cfg.isComposite,
+    proxyTarget: imageAnalysisProxyTarget,
+    tunnelPort,
+    proxyReachable: true,
+  });
+  const imageAnalysisProvisioningFailed =
+    !imageAnalysisMcpReady && imageAnalysisResolution.env.CCS_IMAGE_ANALYSIS_ENABLED === '1';
+  const imageAnalysisEnv = imageAnalysisProvisioningFailed
+    ? {
+        ...imageAnalysisResolution.env,
+        CCS_CURRENT_PROVIDER: '',
+        CCS_IMAGE_ANALYSIS_SKIP: '1',
+      }
+    : imageAnalysisResolution.env;
+  const imageAnalysisWarning = imageAnalysisProvisioningFailed
+    ? 'ImageAnalysis MCP provisioning failed. This session will use native Read.'
+    : imageAnalysisResolution.warning;
 
   // 9. Setup tool sanitization proxy
   let toolSanitizationProxy: ToolSanitizationProxy | null = null;
@@ -869,6 +883,8 @@ export async function execClaudeWithCLIProxy(
       );
     }
   }
+
+  syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
 
   // Build initial env vars to get ANTHROPIC_BASE_URL
   const initialEnvVars = buildClaudeEnvironment({
@@ -1072,7 +1088,14 @@ export async function execClaudeWithCLIProxy(
     : getProviderSettingsPath(provider);
 
   let claude: ChildProcess;
-  const launchArgs = ['--settings', settingsPath, ...appendThirdPartyWebSearchToolArgs(claudeArgs)];
+  const imageAnalysisArgs = imageAnalysisMcpReady
+    ? appendThirdPartyImageAnalysisToolArgs(claudeArgs)
+    : claudeArgs;
+  const launchArgs = [
+    '--settings',
+    settingsPath,
+    ...appendThirdPartyWebSearchToolArgs(imageAnalysisArgs),
+  ];
   const traceEnv = createWebSearchTraceContext({
     launcher: 'cliproxy.executor',
     args: launchArgs,

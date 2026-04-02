@@ -14,7 +14,7 @@ import { DEFAULT_ACCOUNT_CONTEXT_MODE } from '../auth/account-context';
 import type { AccountContextPolicy } from '../auth/account-context';
 import { getCcsDir, getCcsHome } from '../utils/config-manager';
 
-const MANAGED_MCP_SERVER_NAMES = new Set(['ccs-websearch']);
+const MANAGED_MCP_SERVER_NAMES = new Set(['ccs-websearch', 'ccs-image-analysis']);
 
 /** Options for instance creation */
 export interface InstanceOptions {
