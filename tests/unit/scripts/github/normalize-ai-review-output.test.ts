@@ -168,6 +168,47 @@ describe('normalize-ai-review-output', () => {
     expect(markdown).toContain('`old_marker_path`');
   });
 
+  test('renders finding snippets as renderer-owned fenced code blocks', () => {
+    const validation = reviewOutput.normalizeStructuredOutput(
+      JSON.stringify({
+        summary: 'One workflow branch still uses the stale marker path.',
+        findings: [
+          {
+            severity: 'medium',
+            title: 'Fallback branch still writes the stale marker file',
+            file: '.github/workflows/ai-review.yml',
+            line: 181,
+            what: 'One branch still writes the old marker file path.',
+            why: 'That can leave duplicate bot comments on reruns for the same PR SHA.',
+            fix: 'Keep the rerun marker keyed to PR plus head SHA in every publish branch.',
+            snippets: [
+              {
+                label: 'Current publish branch',
+                language: 'bash',
+                code: 'marker_file=\"$RUNNER_TEMP/.ai-review-marker\"\nprintf \"%s\\n\" \"$REVIEW_MARKER\" > \"$marker_file\"',
+              },
+            ],
+          },
+        ],
+        securityChecklist: [{ check: 'Workflow safety', status: 'pass', notes: 'Covered.' }],
+        ccsCompliance: [{ rule: 'Renderer-owned markdown', status: 'pass', notes: 'Covered.' }],
+        informational: [],
+        strengths: [],
+        overallAssessment: 'approved_with_notes',
+        overallRationale: 'This is a deterministic formatting-only follow-up.',
+      })
+    );
+
+    expect(validation.ok).toBe(true);
+    const markdown = reviewOutput.renderStructuredReview(validation.value, { model: 'glm-5.1' });
+
+    expect(markdown).toContain('Evidence: Current publish branch');
+    expect(markdown).toContain('```bash');
+    expect(markdown).toContain('marker_file="$RUNNER_TEMP/.ai-review-marker"');
+    expect(markdown).toContain('printf "%s\\n" "$REVIEW_MARKER" > "$marker_file"');
+    expect(markdown).toContain('```');
+  });
+
   test('normalizes optional rendering metadata when present in structured output', () => {
     const validation = reviewOutput.normalizeStructuredOutput(
       JSON.stringify({
@@ -518,6 +559,41 @@ describe('normalize-ai-review-output', () => {
 
     expect(validation.ok).toBe(false);
     expect(validation.reason).toContain('securityChecklist must contain at least 1 item');
+  });
+
+  test('rejects finding snippets that exceed the renderer snippet budget', () => {
+    const validation = reviewOutput.normalizeStructuredOutput(
+      JSON.stringify({
+        summary: 'The renderer should reject oversized snippet payloads.',
+        findings: [
+          {
+            severity: 'low',
+            title: 'Oversized snippet',
+            file: 'scripts/github/normalize-ai-review-output.mjs',
+            line: 1,
+            what: 'The example snippet is intentionally too long.',
+            why: 'Oversized snippets would bloat the published review comment.',
+            fix: 'Keep snippets short and renderer-owned.',
+            snippets: [
+              {
+                label: 'Too long',
+                language: 'txt',
+                code: Array.from({ length: 21 }, (_, index) => `line ${index + 1}`).join('\n'),
+              },
+            ],
+          },
+        ],
+        securityChecklist: [{ check: 'Injection safety', status: 'pass', notes: 'Covered.' }],
+        ccsCompliance: [{ rule: 'Renderer-owned markdown', status: 'pass', notes: 'Covered.' }],
+        informational: [],
+        strengths: [],
+        overallAssessment: 'approved_with_notes',
+        overallRationale: 'Oversized snippets should fail validation.',
+      })
+    );
+
+    expect(validation.ok).toBe(false);
+    expect(validation.reason).toContain('findings[0].snippets[0].code exceeds 20 lines');
   });
 
   test('allows plain prose that references section labels without starting with them', () => {

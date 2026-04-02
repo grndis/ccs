@@ -156,6 +156,82 @@ describe('run-ai-review-direct', () => {
     });
   });
 
+  test('renders finding snippets from the validated direct review response', async () => {
+    await withTempDir('ai-review-direct-', async (tempDir) => {
+      const outputFile = path.join(tempDir, 'review.md');
+      const logFile = path.join(tempDir, 'attempts.json');
+      const packetFile = path.join(tempDir, 'packet.md');
+      const manifestFile = path.join(tempDir, 'selected-files.txt');
+      const includedManifestFile = path.join(tempDir, 'included-files.txt');
+      fs.writeFileSync(packetFile, '# AI Review Packet\n\npacket body\n');
+      fs.writeFileSync(manifestFile, '.github/workflows/ai-review.yml\n');
+      fs.writeFileSync(includedManifestFile, '.github/workflows/ai-review.yml\n');
+
+      const result = await directReview.writeDirectReviewFromEnv(
+        {
+          ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+          ANTHROPIC_AUTH_TOKEN: 'test-token',
+          REVIEW_MODEL: 'glm-5.1',
+          GITHUB_REPOSITORY: 'kaitranntt/ccs',
+          AI_REVIEW_PROMPT: 'You are a reviewer.',
+          AI_REVIEW_PACKET_FILE: packetFile,
+          AI_REVIEW_SCOPE_MANIFEST_FILE: manifestFile,
+          AI_REVIEW_PACKET_INCLUDED_MANIFEST_FILE: includedManifestFile,
+          AI_REVIEW_OUTPUT_FILE: outputFile,
+          AI_REVIEW_LOG_FILE: logFile,
+          AI_REVIEW_RUN_URL: 'https://github.com/kaitranntt/ccs/actions/runs/1',
+          AI_REVIEW_MODE: 'fast',
+          AI_REVIEW_SELECTED_FILES: '1',
+          AI_REVIEW_REVIEWABLE_FILES: '1',
+          AI_REVIEW_SELECTED_CHANGES: '24',
+          AI_REVIEW_REVIEWABLE_CHANGES: '24',
+          AI_REVIEW_SCOPE_LABEL: 'reviewable files',
+          AI_REVIEW_PACKET_INCLUDED_FILES: '1',
+          AI_REVIEW_PACKET_TOTAL_FILES: '1',
+          AI_REVIEW_PACKET_OMITTED_FILES: '0',
+          AI_REVIEW_TIMEOUT_MINUTES: '8',
+          AI_REVIEW_PR_NUMBER: '888',
+        },
+        async () =>
+          createResponse(
+            JSON.stringify({
+              summary: 'One non-blocking follow-up remains.',
+              findings: [
+                {
+                  severity: 'low',
+                  title: 'Marker write path still has one stale branch',
+                  file: '.github/workflows/ai-review.yml',
+                  line: 181,
+                  what: 'One branch still writes the stale marker file path.',
+                  why: 'That can make rerun behavior harder to reason about.',
+                  fix: 'Keep every publish branch aligned on the PR plus SHA marker.',
+                  snippets: [
+                    {
+                      label: 'Current branch body',
+                      language: 'bash',
+                      code: 'marker_file=\"$RUNNER_TEMP/.ai-review-marker\"\nprintf \"%s\\n\" \"$REVIEW_MARKER\" > \"$marker_file\"',
+                    },
+                  ],
+                },
+              ],
+              securityChecklist: [{ check: 'Injection safety', status: 'pass', notes: 'Covered.' }],
+              ccsCompliance: [{ rule: 'Renderer-owned markdown', status: 'pass', notes: 'Covered.' }],
+              informational: [],
+              strengths: ['The response validated on the first attempt.'],
+              overallAssessment: 'approved_with_notes',
+              overallRationale: 'The remaining change is formatter polish only.',
+            })
+          )
+      );
+
+      expect(result.usedFallback).toBe(false);
+      const markdown = fs.readFileSync(outputFile, 'utf8');
+      expect(markdown).toContain('Evidence: Current branch body');
+      expect(markdown).toContain('```bash');
+      expect(markdown).toContain('marker_file="$RUNNER_TEMP/.ai-review-marker"');
+    });
+  });
+
   test('retries with a repair attempt when the first response is invalid', async () => {
     await withTempDir('ai-review-direct-', async (tempDir) => {
       const outputFile = path.join(tempDir, 'review.md');

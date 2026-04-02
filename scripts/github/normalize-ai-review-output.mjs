@@ -37,9 +37,19 @@ const RENDERER_OWNED_MARKUP_PATTERNS = [
 
 const INLINE_CODE_TOKEN_PATTERN =
   /\b[A-Za-z_][A-Za-z0-9_.]*\([^()\n]*\)|(?<![\w`])\.?[\w-]+(?:\/[\w.-]+)+\.[\w.-]+(?::\d+)?|\b[\w.-]+\/[\w.-]+@[\w.-]+\b|--[a-z0-9][a-z0-9-]*\b|\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gu;
+const CODE_BLOCK_LANGUAGE_PATTERN = /^[A-Za-z0-9#+.-]{1,20}$/u;
+const MAX_FINDING_SNIPPETS = 2;
+const MAX_SNIPPET_LINES = 20;
+const MAX_SNIPPET_CHARACTERS = 1200;
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+}
+
+function cleanMultilineText(value) {
+  return typeof value === 'string'
+    ? value.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    : '';
 }
 
 function escapeMarkdown(value) {
@@ -55,6 +65,14 @@ function renderCode(value) {
   const longestFence = Math.max(...[...text.matchAll(/`+/g)].map((match) => match[0].length), 0);
   const fence = '`'.repeat(longestFence + 1);
   return `${fence}${text}${fence}`;
+}
+
+function renderCodeBlock(value, language) {
+  const text = cleanMultilineText(value);
+  const longestFence = Math.max(...[...text.matchAll(/`+/gu)].map((match) => match[0].length), 0);
+  const fence = '`'.repeat(Math.max(3, longestFence + 1));
+  const info = cleanText(language);
+  return `${fence}${info}\n${text}\n${fence}`;
 }
 
 function renderInlineText(value) {
@@ -330,6 +348,74 @@ function normalizeChecklistRows(fieldName, labelField, raw) {
   return { ok: true, value: rows };
 }
 
+function normalizeFindingSnippets(fieldName, raw) {
+  if (raw === null || raw === undefined) {
+    return { ok: true, value: [] };
+  }
+
+  if (!Array.isArray(raw)) {
+    return { ok: false, reason: `${fieldName} must be an array` };
+  }
+
+  if (raw.length > MAX_FINDING_SNIPPETS) {
+    return {
+      ok: false,
+      reason: `${fieldName} must contain at most ${MAX_FINDING_SNIPPETS} snippets`,
+    };
+  }
+
+  const snippets = [];
+  for (const [index, item] of raw.entries()) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { ok: false, reason: `${fieldName}[${index}] must be an object` };
+    }
+
+    let label = null;
+    if (Object.hasOwn(item, 'label') && item.label !== null && item.label !== undefined) {
+      const labelValidation = validatePlainTextField(`${fieldName}[${index}].label`, item.label);
+      if (!labelValidation.ok) return labelValidation;
+      label = labelValidation.value;
+    }
+
+    let language = null;
+    if (Object.hasOwn(item, 'language') && item.language !== null && item.language !== undefined) {
+      const normalizedLanguage = cleanText(item.language).toLowerCase();
+      if (normalizedLanguage) {
+        if (!CODE_BLOCK_LANGUAGE_PATTERN.test(normalizedLanguage)) {
+          return { ok: false, reason: `${fieldName}[${index}].language is invalid` };
+        }
+        language = normalizedLanguage;
+      }
+    }
+
+    const code = cleanMultilineText(item.code);
+    if (!code) {
+      return { ok: false, reason: `${fieldName}[${index}].code is required` };
+    }
+    if (code.length > MAX_SNIPPET_CHARACTERS) {
+      return {
+        ok: false,
+        reason: `${fieldName}[${index}].code exceeds ${MAX_SNIPPET_CHARACTERS} characters`,
+      };
+    }
+
+    const lineCount = code.split('\n').length;
+    if (lineCount > MAX_SNIPPET_LINES) {
+      return {
+        ok: false,
+        reason: `${fieldName}[${index}].code exceeds ${MAX_SNIPPET_LINES} lines`,
+      };
+    }
+
+    const snippet = { code };
+    if (label) snippet.label = label;
+    if (language) snippet.language = language;
+    snippets.push(snippet);
+  }
+
+  return { ok: true, value: snippets };
+}
+
 function readExecutionMetadata(executionFile) {
   if (!executionFile || !fs.existsSync(executionFile)) {
     return {};
@@ -472,6 +558,8 @@ export function normalizeStructuredOutput(raw) {
 
     const fix = validatePlainTextField(`findings[${index}].fix`, finding?.fix);
     if (!fix.ok) return fix;
+    const snippets = normalizeFindingSnippets(`findings[${index}].snippets`, finding?.snippets);
+    if (!snippets.ok) return snippets;
 
     let line = null;
     if (finding && Object.hasOwn(finding, 'line')) {
@@ -496,6 +584,7 @@ export function normalizeStructuredOutput(raw) {
       what: what.value,
       why: why.value,
       fix: fix.value,
+      snippets: snippets.value,
     });
   }
 
@@ -532,6 +621,25 @@ function renderBulletSection(title, items) {
   return ['', title, ...items.map((item) => `- ${renderInlineText(item)}`)];
 }
 
+function renderFindingSnippets(snippets) {
+  if (!Array.isArray(snippets) || snippets.length === 0) {
+    return [];
+  }
+
+  const lines = [];
+  for (const snippet of snippets) {
+    const label = snippet.label ? `Evidence: ${renderInlineText(snippet.label)}` : 'Evidence:';
+    lines.push('', `    ${label}`, '');
+    lines.push(
+      ...renderCodeBlock(snippet.code, snippet.language)
+        .split('\n')
+        .map((line) => `    ${line}`)
+    );
+  }
+
+  return lines;
+}
+
 export function renderStructuredReview(review, { model, rendering: renderOptions } = {}) {
   const rendering = mergeRenderingMetadata(review?.rendering, renderOptions);
   const lines = ['### 📋 Summary', '', renderInlineText(review.summary), '', '### 🔍 Findings'];
@@ -555,6 +663,7 @@ export function renderStructuredReview(review, { model, rendering: renderOptions
         lines.push(`  Problem: ${renderInlineText(finding.what)}`);
         lines.push(`  Why it matters: ${renderInlineText(finding.why)}`);
         lines.push(`  Suggested fix: ${renderInlineText(finding.fix)}`);
+        lines.push(...renderFindingSnippets(finding.snippets));
         lines.push('');
       }
     }

@@ -100,6 +100,14 @@ Return a single object with these keys only:
 - overallAssessment
 - overallRationale
 
+Each finding may optionally include:
+- snippets: an array of up to 2 objects with keys label, language, and code
+
+If snippets are present:
+- keep code literal only, without markdown fences
+- keep each snippet under 20 lines
+- use snippets only for short evidence that materially clarifies the finding
+
 Use empty arrays rather than inventing low-value feedback.
 Every finding must be confirmed by the review packet.`;
 }
