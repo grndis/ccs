@@ -184,10 +184,33 @@ describe('ensureImageAnalysisMcp', () => {
   it('serializes ~/.claude.json updates with a file lock', () => {
     setupTempHome();
     writeEnabledConfig();
+    const claudeUserConfigPath = path.join(tempHome as string, '.claude.json');
+    fs.writeFileSync(claudeUserConfigPath, '{}\n', 'utf8');
 
     const lockSpy = spyOn(lockfile, 'lockSync');
 
     expect(ensureImageAnalysisMcp()).toBe(true);
     expect(lockSpy).toHaveBeenCalled();
+    expect(lockSpy.mock.calls[0]?.[0]).toBe(tempHome as string);
+  });
+
+  it('returns false instead of throwing when ~/.claude.json is already locked', () => {
+    setupTempHome();
+    writeEnabledConfig();
+
+    const claudeUserConfigPath = path.join(tempHome as string, '.claude.json');
+    fs.writeFileSync(claudeUserConfigPath, '{}\n', 'utf8');
+
+    const release = lockfile.lockSync(tempHome as string, { stale: 10000 }) as () => void;
+
+    try {
+      let result: boolean | undefined;
+      expect(() => {
+        result = ensureImageAnalysisMcp();
+      }).not.toThrow();
+      expect(result).toBe(false);
+    } finally {
+      release();
+    }
   });
 });

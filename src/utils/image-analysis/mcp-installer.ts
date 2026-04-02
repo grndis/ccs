@@ -121,7 +121,7 @@ function writeClaudeUserConfig(configPath: string, config: ClaudeUserConfig): bo
 }
 
 function withClaudeUserConfigLock<T>(configPath: string, callback: () => T): T {
-  const lockTarget = fs.existsSync(configPath) ? configPath : path.dirname(configPath);
+  const lockTarget = path.dirname(configPath);
   let release: (() => void) | undefined;
 
   if (!fs.existsSync(path.dirname(configPath))) {
@@ -140,6 +140,11 @@ function withClaudeUserConfigLock<T>(configPath: string, callback: () => T): T {
       }
     }
   }
+}
+
+function isLockUnavailableError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'ELOCKED' || code === 'ENOTACQUIRED';
 }
 
 export function hasImageAnalysisMcpServerInstalled(): boolean {
@@ -183,52 +188,66 @@ function removeManagedServerConfig(configPath: string): boolean {
     return false;
   }
 
-  return withClaudeUserConfigLock(configPath, () => {
-    const config = readClaudeUserConfig(configPath);
-    if (config === null) {
-      if (process.env.CCS_DEBUG) {
-        console.error(warn(`Malformed Claude config prevents MCP cleanup: ${configPath}`));
+  try {
+    return withClaudeUserConfigLock(configPath, () => {
+      const config = readClaudeUserConfig(configPath);
+      if (config === null) {
+        if (process.env.CCS_DEBUG) {
+          console.error(warn(`Malformed Claude config prevents MCP cleanup: ${configPath}`));
+        }
+        return false;
       }
-      return false;
-    }
 
-    const existingServers =
-      config.mcpServers &&
-      typeof config.mcpServers === 'object' &&
-      !Array.isArray(config.mcpServers)
-        ? { ...(config.mcpServers as Record<string, unknown>) }
-        : {};
+      const existingServers =
+        config.mcpServers &&
+        typeof config.mcpServers === 'object' &&
+        !Array.isArray(config.mcpServers)
+          ? { ...(config.mcpServers as Record<string, unknown>) }
+          : {};
 
-    if (!(IMAGE_ANALYSIS_MCP_SERVER_NAME in existingServers)) {
-      return false;
-    }
-
-    delete existingServers[IMAGE_ANALYSIS_MCP_SERVER_NAME];
-
-    const nextConfig: ClaudeUserConfig = { ...config };
-    if (Object.keys(existingServers).length === 0) {
-      delete nextConfig.mcpServers;
-    } else {
-      nextConfig.mcpServers = existingServers;
-    }
-
-    try {
-      writeClaudeUserConfig(configPath, nextConfig);
-      if (process.env.CCS_DEBUG) {
-        console.error(info(`Removed Image Analysis MCP config from ${configPath}`));
+      if (!(IMAGE_ANALYSIS_MCP_SERVER_NAME in existingServers)) {
+        return false;
       }
-      return true;
-    } catch (error) {
+
+      delete existingServers[IMAGE_ANALYSIS_MCP_SERVER_NAME];
+
+      const nextConfig: ClaudeUserConfig = { ...config };
+      if (Object.keys(existingServers).length === 0) {
+        delete nextConfig.mcpServers;
+      } else {
+        nextConfig.mcpServers = existingServers;
+      }
+
+      try {
+        writeClaudeUserConfig(configPath, nextConfig);
+        if (process.env.CCS_DEBUG) {
+          console.error(info(`Removed Image Analysis MCP config from ${configPath}`));
+        }
+        return true;
+      } catch (error) {
+        if (process.env.CCS_DEBUG) {
+          console.error(
+            warn(
+              `Failed to remove Image Analysis MCP config from ${configPath}: ${(error as Error).message}`
+            )
+          );
+        }
+        return false;
+      }
+    });
+  } catch (error) {
+    if (isLockUnavailableError(error)) {
       if (process.env.CCS_DEBUG) {
         console.error(
           warn(
-            `Failed to remove Image Analysis MCP config from ${configPath}: ${(error as Error).message}`
+            `Image Analysis MCP cleanup skipped because ${configPath} is locked by another process`
           )
         );
       }
       return false;
     }
-  });
+    throw error;
+  }
 }
 
 export function installImageAnalysisMcpServer(): boolean {
@@ -331,52 +350,66 @@ export function ensureImageAnalysisMcpConfig(): boolean {
     env: {},
   };
 
-  return withClaudeUserConfigLock(claudeUserConfigPath, () => {
-    const config = readClaudeUserConfig(claudeUserConfigPath);
+  try {
+    return withClaudeUserConfigLock(claudeUserConfigPath, () => {
+      const config = readClaudeUserConfig(claudeUserConfigPath);
 
-    if (config === null) {
+      if (config === null) {
+        if (process.env.CCS_DEBUG) {
+          console.error(warn('Malformed ~/.claude.json prevents Image Analysis MCP provisioning'));
+        }
+        return false;
+      }
+
+      const existingServers =
+        config.mcpServers &&
+        typeof config.mcpServers === 'object' &&
+        !Array.isArray(config.mcpServers)
+          ? (config.mcpServers as Record<string, unknown>)
+          : {};
+      const currentConfig = existingServers[IMAGE_ANALYSIS_MCP_SERVER_NAME];
+      if (
+        typeof currentConfig === 'object' &&
+        currentConfig !== null &&
+        JSON.stringify(currentConfig) === JSON.stringify(desiredServerConfig)
+      ) {
+        return true;
+      }
+
+      const nextConfig: ClaudeUserConfig = {
+        ...config,
+        mcpServers: {
+          ...existingServers,
+          [IMAGE_ANALYSIS_MCP_SERVER_NAME]: desiredServerConfig,
+        },
+      };
+
+      try {
+        writeClaudeUserConfig(claudeUserConfigPath, nextConfig);
+        if (process.env.CCS_DEBUG) {
+          console.error(info(`Ensured Image Analysis MCP config in ${claudeUserConfigPath}`));
+        }
+        return true;
+      } catch (error) {
+        if (process.env.CCS_DEBUG) {
+          console.error(warn(`Failed to update ~/.claude.json: ${(error as Error).message}`));
+        }
+        return false;
+      }
+    });
+  } catch (error) {
+    if (isLockUnavailableError(error)) {
       if (process.env.CCS_DEBUG) {
-        console.error(warn('Malformed ~/.claude.json prevents Image Analysis MCP provisioning'));
+        console.error(
+          warn(
+            `Image Analysis MCP provisioning skipped because ${claudeUserConfigPath} is locked by another process`
+          )
+        );
       }
       return false;
     }
-
-    const existingServers =
-      config.mcpServers &&
-      typeof config.mcpServers === 'object' &&
-      !Array.isArray(config.mcpServers)
-        ? (config.mcpServers as Record<string, unknown>)
-        : {};
-    const currentConfig = existingServers[IMAGE_ANALYSIS_MCP_SERVER_NAME];
-    if (
-      typeof currentConfig === 'object' &&
-      currentConfig !== null &&
-      JSON.stringify(currentConfig) === JSON.stringify(desiredServerConfig)
-    ) {
-      return true;
-    }
-
-    const nextConfig: ClaudeUserConfig = {
-      ...config,
-      mcpServers: {
-        ...existingServers,
-        [IMAGE_ANALYSIS_MCP_SERVER_NAME]: desiredServerConfig,
-      },
-    };
-
-    try {
-      writeClaudeUserConfig(claudeUserConfigPath, nextConfig);
-      if (process.env.CCS_DEBUG) {
-        console.error(info(`Ensured Image Analysis MCP config in ${claudeUserConfigPath}`));
-      }
-      return true;
-    } catch (error) {
-      if (process.env.CCS_DEBUG) {
-        console.error(warn(`Failed to update ~/.claude.json: ${(error as Error).message}`));
-      }
-      return false;
-    }
-  });
+    throw error;
+  }
 }
 
 export function ensureImageAnalysisMcp(): boolean {
