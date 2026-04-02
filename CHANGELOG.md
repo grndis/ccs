@@ -1,3 +1,9 @@
+## [7.65.1](https://github.com/kaitranntt/ccs/compare/v7.65.0...v7.65.1) (2026-04-02)
+
+### Hotfixes
+
+* **ci:** keep ai review feedback fast and deterministic ([4e05488](https://github.com/kaitranntt/ccs/commit/4e05488c195161792cdc0e74cbd21ed032697a3a))
+
 ## [7.65.0](https://github.com/kaitranntt/ccs/compare/v7.64.0...v7.65.0) (2026-04-02)
 
 ### Features
