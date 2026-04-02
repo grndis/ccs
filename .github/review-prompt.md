@@ -49,7 +49,7 @@ Use only the review contract in this file plus the generated scope and packet fi
 
 - Return confirmed findings only.
 - Every finding must cite a file path and, when practical, a line number.
-- Each finding may optionally include `snippets`: up to 2 short evidence blocks with `label`, `language`, and `code`.
+- Each finding may optionally include `snippets`: up to 2 short evidence blocks with required `code`, plus optional `label` and `language`.
 - Keep the total finding count small unless the PR genuinely has several distinct problems.
 - If there are no confirmed findings, say so in the summary and return an empty findings array.
 - Use `approved` only when the diff is ready to merge as-is.

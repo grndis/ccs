@@ -209,6 +209,44 @@ describe('normalize-ai-review-output', () => {
     expect(markdown).toContain('```');
   });
 
+  test('preserves leading indentation inside literal finding snippets', () => {
+    const validation = reviewOutput.normalizeStructuredOutput(
+      JSON.stringify({
+        summary: 'Indented snippets must stay literal.',
+        findings: [
+          {
+            severity: 'low',
+            title: 'Indentation-sensitive example',
+            file: 'examples/sample.py',
+            line: 7,
+            what: 'The snippet must preserve its leading spaces.',
+            why: 'Python, YAML, and shell examples break when the renderer trims indentation.',
+            fix: 'Normalize newlines without trimming leading spaces from the first line.',
+            snippets: [
+              {
+                language: 'python',
+                code: '    if value:\n        print(value)',
+              },
+            ],
+          },
+        ],
+        securityChecklist: [{ check: 'Injection safety', status: 'pass', notes: 'Covered.' }],
+        ccsCompliance: [{ rule: 'Renderer-owned markdown', status: 'pass', notes: 'Covered.' }],
+        informational: [],
+        strengths: [],
+        overallAssessment: 'approved_with_notes',
+        overallRationale: 'This keeps literal evidence stable.',
+      })
+    );
+
+    expect(validation.ok).toBe(true);
+    expect(validation.value.findings[0].snippets[0].code).toBe('    if value:\n        print(value)');
+
+    const markdown = reviewOutput.renderStructuredReview(validation.value, { model: 'glm-5.1' });
+    expect(markdown).toContain('    if value:');
+    expect(markdown).toContain('        print(value)');
+  });
+
   test('normalizes optional rendering metadata when present in structured output', () => {
     const validation = reviewOutput.normalizeStructuredOutput(
       JSON.stringify({

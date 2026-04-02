@@ -101,7 +101,7 @@ Return a single object with these keys only:
 - overallRationale
 
 Each finding may optionally include:
-- snippets: an array of up to 2 objects with keys label, language, and code
+- snippets: an array of up to 2 objects with required code plus optional label and language
 
 If snippets are present:
 - keep code literal only, without markdown fences

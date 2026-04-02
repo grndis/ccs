@@ -47,9 +47,15 @@ function cleanText(value) {
 }
 
 function cleanMultilineText(value) {
-  return typeof value === 'string'
-    ? value.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-    : '';
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/^\n+/u, '')
+    .replace(/\n+$/u, '');
 }
 
 function escapeMarkdown(value) {
