@@ -138,6 +138,10 @@ export function ensureProfileHooks(input: string | ImageAnalysisResolutionContex
       return false;
     }
 
+    if (context.sharedHookInstalled === false) {
+      return false;
+    }
+
     // One-time migration marker
     migrateGlobalHook();
 

@@ -6,6 +6,8 @@
 
 import { info, ok, color, box, initUI } from '../utils/ui';
 import { uninstallWebSearchHook, uninstallWebSearchMcp } from '../utils/websearch';
+import { uninstallImageAnalysisMcp } from '../utils/image-analysis';
+import { uninstallImageAnalyzerHook } from '../utils/hooks';
 import { ClaudeSymlinkManager } from '../utils/claude-symlink-manager';
 
 /**
@@ -49,12 +51,25 @@ export async function handleUninstallCommand(): Promise<void> {
     removed += 1;
   }
 
-  // 3. Remove symlinks from ~/.claude/
+  // 3. Remove Image Analysis hook fallback + managed MCP runtime
+  const imageHookRemoved = uninstallImageAnalyzerHook();
+  if (imageHookRemoved) {
+    console.log(ok('Removed Image Analysis hook fallback'));
+    removed += 1;
+  }
+
+  const imageMcpRemoved = uninstallImageAnalysisMcp();
+  if (imageMcpRemoved) {
+    console.log(ok('Removed Image Analysis MCP runtime'));
+    removed += 1;
+  }
+
+  // 4. Remove symlinks from ~/.claude/
   const symlinkManager = new ClaudeSymlinkManager();
   const symlinksRemoved = symlinkManager.uninstall();
   removed += symlinksRemoved; // Add actual count of symlinks removed
 
-  // 4. Summary
+  // 5. Summary
   console.log('');
   if (removed > 0) {
     console.log(ok('Uninstall complete!'));

@@ -5,3 +5,23 @@
  */
 
 export { getPromptsDir, installImageAnalysisPrompts } from './hook-installer';
+export {
+  getImageAnalysisMcpServerName,
+  getImageAnalysisMcpServerPath,
+  getImageAnalysisMcpRuntimePath,
+  installImageAnalysisMcpServer,
+  ensureImageAnalysisMcpConfig,
+  ensureImageAnalysisMcp,
+  uninstallImageAnalysisMcpServer,
+  removeImageAnalysisMcpConfig,
+  uninstallImageAnalysisMcp,
+  syncImageAnalysisMcpToConfigDir,
+  ensureImageAnalysisMcpOrThrow,
+} from './mcp-installer';
+export {
+  appendThirdPartyImageAnalysisToolArgs,
+  getImageAnalysisSteeringPrompt,
+} from './claude-tool-args';
+
+export const IMAGE_ANALYSIS_PROMPT_TEMPLATES = ['default', 'screenshot', 'document'] as const;
+export type ImageAnalysisPromptTemplate = (typeof IMAGE_ANALYSIS_PROMPT_TEMPLATES)[number];

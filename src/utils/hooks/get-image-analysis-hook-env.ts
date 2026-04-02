@@ -8,7 +8,9 @@
  */
 
 import { getImageAnalysisConfig } from '../../config/unified-config-loader';
+import { resolveCliproxyBridgeProfile } from '../../api/services/cliproxy-profile-bridge';
 import { mapExternalProviderName } from '../../cliproxy/provider-capabilities';
+import { getPromptsDir } from '../image-analysis/hook-installer';
 import {
   resolveImageAnalysisStatus,
   type ImageAnalysisResolutionContext,
@@ -21,6 +23,14 @@ function serializeProviderModels(providerModels: Record<string, string>): string
   return Object.entries(providerModels)
     .map(([provider, model]) => `${provider}:${model}`)
     .join(',');
+}
+
+export interface ImageAnalysisRuntimeOverrides {
+  backendId?: string | null;
+  model?: string | null;
+  runtimePath?: string | null;
+  baseUrl?: string | null;
+  apiKey?: string | null;
 }
 
 /**
@@ -45,12 +55,66 @@ export function getImageAnalysisHookEnv(
     ? resolveImageAnalysisStatus(context, config)
     : resolveImageAnalysisStatus({ profileName: '' }, config);
   const skipImageAnalysis = !status.supported;
+  const runtimeApiKey =
+    typeof context === 'object' && context.cliproxyBridge
+      ? resolveCliproxyBridgeProfile(context.cliproxyBridge.provider).apiKey
+      : '';
 
   return {
     CCS_IMAGE_ANALYSIS_ENABLED: config.enabled ? '1' : '0',
     CCS_IMAGE_ANALYSIS_TIMEOUT: String(Number(config.timeout) || 60),
     CCS_IMAGE_ANALYSIS_PROVIDER_MODELS: serializeProviderModels(config.provider_models),
     CCS_CURRENT_PROVIDER: status.backendId || '',
+    CCS_IMAGE_ANALYSIS_BACKEND_ID: status.backendId || '',
+    CCS_IMAGE_ANALYSIS_MODEL: status.model || '',
+    CCS_IMAGE_ANALYSIS_RUNTIME_PATH: status.runtimePath || '',
+    CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL:
+      typeof context === 'object' ? context.cliproxyBridge?.currentBaseUrl || '' : '',
+    ...(runtimeApiKey ? { CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY: runtimeApiKey } : {}),
+    CCS_IMAGE_ANALYSIS_PROMPTS_DIR: getPromptsDir(),
     CCS_IMAGE_ANALYSIS_SKIP: skipImageAnalysis ? '1' : '0',
   };
+}
+
+/**
+ * Overlay execution-specific runtime values onto the baseline image-analysis env.
+ * Launch paths use this to pin analysis to the exact provider route and auth
+ * token selected for the current session rather than any stale saved values.
+ */
+export function applyImageAnalysisRuntimeOverrides(
+  env: Record<string, string>,
+  overrides: ImageAnalysisRuntimeOverrides
+): Record<string, string> {
+  const nextEnv = { ...env };
+
+  const backendId = overrides.backendId?.trim();
+  if (backendId) {
+    nextEnv.CCS_CURRENT_PROVIDER = backendId;
+    nextEnv.CCS_IMAGE_ANALYSIS_BACKEND_ID = backendId;
+  }
+
+  const model = overrides.model?.trim();
+  if (model) {
+    nextEnv.CCS_IMAGE_ANALYSIS_MODEL = model;
+  }
+
+  const runtimePath = overrides.runtimePath?.trim();
+  if (runtimePath) {
+    nextEnv.CCS_IMAGE_ANALYSIS_RUNTIME_PATH = runtimePath;
+  }
+
+  if (overrides.baseUrl !== undefined) {
+    nextEnv.CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL = overrides.baseUrl?.trim() || '';
+  }
+
+  if (overrides.apiKey !== undefined) {
+    const apiKey = overrides.apiKey?.trim();
+    if (apiKey) {
+      nextEnv.CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY = apiKey;
+    } else {
+      delete nextEnv.CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY;
+    }
+  }
+
+  return nextEnv;
 }

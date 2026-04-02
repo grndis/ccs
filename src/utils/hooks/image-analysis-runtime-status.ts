@@ -119,13 +119,6 @@ function resolveEffectiveRuntime(
     };
   }
 
-  if (status.status === 'hook-missing') {
-    return {
-      effectiveRuntimeMode: 'native-read',
-      effectiveRuntimeReason: status.reason,
-    };
-  }
-
   if (status.authReadiness === 'missing' || status.authReadiness === 'unknown') {
     return {
       effectiveRuntimeMode: 'native-read',
@@ -142,7 +135,8 @@ function resolveEffectiveRuntime(
 
   return {
     effectiveRuntimeMode: 'cliproxy-image-analysis',
-    effectiveRuntimeReason: status.status === 'attention' ? status.reason : null,
+    effectiveRuntimeReason:
+      status.status === 'attention' || status.status === 'hook-missing' ? status.reason : null,
   };
 }
 

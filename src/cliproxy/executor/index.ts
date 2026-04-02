@@ -58,8 +58,12 @@ import {
   appendThirdPartyWebSearchToolArgs,
   createWebSearchTraceContext,
 } from '../../utils/websearch-manager';
+import {
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+  appendThirdPartyImageAnalysisToolArgs,
+} from '../../utils/image-analysis';
 import { loadOrCreateUnifiedConfig, getThinkingConfig } from '../../config/unified-config-loader';
-import { installImageAnalyzerHook } from '../../utils/hooks';
 import { HttpsTunnelProxy } from '../https-tunnel-proxy';
 import { isKiroAuthMethod, KiroAuthMethod, normalizeKiroAuthMethod } from '../auth/auth-types';
 import { resolveProfileContinuityInheritance } from '../../auth/profile-continuity-inheritance';
@@ -205,10 +209,8 @@ export async function execClaudeWithCLIProxy(
 
   // Setup first-class CCS WebSearch runtime
   ensureWebSearchMcpOrThrow();
+  ensureImageAnalysisMcpOrThrow();
   displayWebSearchStatus();
-
-  // Sync image analyzer hook from npm package to ~/.ccs/hooks/
-  installImageAnalyzerHook();
 
   const providerConfig = getProviderConfig(provider);
   log(`Provider: ${providerConfig.displayName}`);
@@ -870,6 +872,8 @@ export async function execClaudeWithCLIProxy(
     }
   }
 
+  syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
+
   // Build initial env vars to get ANTHROPIC_BASE_URL
   const initialEnvVars = buildClaudeEnvironment({
     provider,
@@ -1072,7 +1076,11 @@ export async function execClaudeWithCLIProxy(
     : getProviderSettingsPath(provider);
 
   let claude: ChildProcess;
-  const launchArgs = ['--settings', settingsPath, ...appendThirdPartyWebSearchToolArgs(claudeArgs)];
+  const launchArgs = [
+    '--settings',
+    settingsPath,
+    ...appendThirdPartyWebSearchToolArgs(appendThirdPartyImageAnalysisToolArgs(claudeArgs)),
+  ];
   const traceEnv = createWebSearchTraceContext({
     launcher: 'cliproxy.executor',
     args: launchArgs,

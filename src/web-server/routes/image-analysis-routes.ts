@@ -84,7 +84,6 @@ function resolveCurrentTargetMode(
   if (target !== 'claude') return 'bypassed';
   if (status.nativeReadPreference) return 'native';
   if (!status.backendId) return 'unresolved';
-  if (status.status === 'hook-missing') return 'setup';
   if (status.effectiveRuntimeMode === 'native-read') return 'fallback';
   return 'active';
 }

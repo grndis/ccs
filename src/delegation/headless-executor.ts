@@ -15,10 +15,26 @@ import { ui, warn, info } from '../utils/ui';
 import { type ExecutionOptions, type ExecutionResult, type StreamMessage } from './executor/types';
 import { StreamBuffer, formatToolVerbose } from './executor/stream-parser';
 import { buildExecutionResult } from './executor/result-aggregator';
-import { getCcsDir, getModelDisplayName } from '../utils/config-manager';
+import { getCcsDir, getModelDisplayName, loadSettings } from '../utils/config-manager';
 import { getProfileLookupCandidates } from '../utils/profile-compat';
 import { getClaudeLaunchEnvOverrides, stripClaudeCodeEnv } from '../utils/shell-executor';
 import { resolveProfileContinuityInheritance } from '../auth/profile-continuity-inheritance';
+import {
+  appendThirdPartyImageAnalysisToolArgs,
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+} from '../utils/image-analysis';
+import {
+  applyImageAnalysisRuntimeOverrides,
+  getImageAnalysisHookEnv,
+  prepareImageAnalysisFallbackHook,
+  resolveImageAnalysisRuntimeStatus,
+} from '../utils/hooks';
+import { ensureProfileHooks as ensureImageAnalyzerHooks } from '../utils/hooks/image-analyzer-profile-hook-injector';
+import { resolveCliproxyBridgeMetadata, resolveCliproxyBridgeProfile } from '../api/services';
+import { ensureCliproxyService } from '../cliproxy';
+import { getEffectiveApiKey } from '../cliproxy/auth-token-manager';
+import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 import {
   appendThirdPartyWebSearchToolArgs,
   appendWebSearchTrace,
@@ -105,7 +121,80 @@ export class HeadlessExecutor {
     }
 
     ensureWebSearchMcpOrThrow();
+    ensureImageAnalysisMcpOrThrow();
     syncWebSearchMcpToConfigDir(inheritedClaudeConfigDir);
+    syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
+
+    const settings = loadSettings(settingsPath);
+    const cliproxyBridge = resolveCliproxyBridgeMetadata(settings);
+    const imageAnalysisFallbackHookReady = prepareImageAnalysisFallbackHook();
+    ensureImageAnalyzerHooks({
+      profileName: profile,
+      profileType: 'settings',
+      settingsPath,
+      settings,
+      cliproxyBridge,
+      sharedHookInstalled: imageAnalysisFallbackHookReady,
+    });
+    const imageAnalysisStatus = await resolveImageAnalysisRuntimeStatus({
+      profileName: profile,
+      profileType: 'settings',
+      settings,
+      cliproxyBridge,
+      sharedHookInstalled: imageAnalysisFallbackHookReady,
+    });
+    const currentBridgeAuthToken = cliproxyBridge
+      ? resolveCliproxyBridgeProfile(cliproxyBridge.provider).apiKey
+      : getEffectiveApiKey();
+    let imageAnalysisEnv = getImageAnalysisHookEnv({
+      profileName: profile,
+      profileType: 'settings',
+      settings,
+      cliproxyBridge,
+    });
+    imageAnalysisEnv = applyImageAnalysisRuntimeOverrides(imageAnalysisEnv, {
+      backendId: imageAnalysisStatus.backendId,
+      model: imageAnalysisStatus.model,
+      runtimePath: imageAnalysisStatus.runtimePath,
+      baseUrl: cliproxyBridge?.currentBaseUrl || '',
+      apiKey: currentBridgeAuthToken,
+    });
+
+    const imageAnalysisProvider = imageAnalysisEnv['CCS_CURRENT_PROVIDER'];
+    if (
+      imageAnalysisEnv['CCS_IMAGE_ANALYSIS_SKIP'] !== '1' &&
+      imageAnalysisProvider &&
+      imageAnalysisStatus.effectiveRuntimeMode === 'native-read'
+    ) {
+      console.error(
+        info(
+          `${imageAnalysisStatus.effectiveRuntimeReason || `Image analysis via ${imageAnalysisProvider} is unavailable.`} This delegation will use native Read.`
+        )
+      );
+      imageAnalysisEnv = {
+        ...imageAnalysisEnv,
+        CCS_CURRENT_PROVIDER: '',
+        CCS_IMAGE_ANALYSIS_SKIP: '1',
+      };
+    } else if (
+      imageAnalysisEnv['CCS_IMAGE_ANALYSIS_SKIP'] !== '1' &&
+      imageAnalysisProvider &&
+      imageAnalysisStatus.proxyReadiness === 'stopped'
+    ) {
+      const ensureServiceResult = await ensureCliproxyService(CLIPROXY_DEFAULT_PORT, false);
+      if (!ensureServiceResult.started) {
+        console.error(
+          warn(
+            `Image analysis via ${imageAnalysisProvider} is unavailable because CCS could not start the local CLIProxy service. This delegation will use native Read.`
+          )
+        );
+        imageAnalysisEnv = {
+          ...imageAnalysisEnv,
+          CCS_CURRENT_PROVIDER: '',
+          CCS_IMAGE_ANALYSIS_SKIP: '1',
+        };
+      }
+    }
 
     // Smart slash command detection and preservation
     const processedPrompt = this._processSlashCommand(enhancedPrompt);
@@ -190,7 +279,9 @@ export class HeadlessExecutor {
       }
     }
 
-    const launchArgs = appendThirdPartyWebSearchToolArgs(args);
+    const launchArgs = appendThirdPartyWebSearchToolArgs(
+      appendThirdPartyImageAnalysisToolArgs(args)
+    );
     const traceEnv = createWebSearchTraceContext({
       launcher: 'delegation.headless-executor',
       args: launchArgs,
@@ -217,6 +308,7 @@ export class HeadlessExecutor {
       sessionId,
       sessionMgr,
       claudeConfigDir: inheritedClaudeConfigDir,
+      imageAnalysisEnv,
       traceEnv,
     });
   }
@@ -235,6 +327,7 @@ export class HeadlessExecutor {
       sessionId: string | null;
       sessionMgr: SessionManager;
       claudeConfigDir?: string;
+      imageAnalysisEnv?: Record<string, string>;
       traceEnv?: Record<string, string>;
     }
   ): Promise<ExecutionResult> {
@@ -246,6 +339,7 @@ export class HeadlessExecutor {
       sessionId,
       sessionMgr,
       claudeConfigDir,
+      imageAnalysisEnv = {},
       traceEnv = {},
     } = ctx;
 
@@ -265,6 +359,7 @@ export class HeadlessExecutor {
         ...process.env,
         ...getClaudeLaunchEnvOverrides(),
         ...getWebSearchHookEnv(),
+        ...imageAnalysisEnv,
         ...traceEnv,
         ...(claudeConfigDir ? { CLAUDE_CONFIG_DIR: claudeConfigDir } : {}),
         CCS_PROFILE_TYPE: 'settings',

@@ -31,11 +31,17 @@ import {
   appendThirdPartyWebSearchToolArgs,
   createWebSearchTraceContext,
 } from './utils/websearch-manager';
+import {
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+  appendThirdPartyImageAnalysisToolArgs,
+} from './utils/image-analysis';
 import { getGlobalEnvConfig, getOfficialChannelsConfig } from './config/unified-config-loader';
 import { ensureProfileHooks as ensureImageAnalyzerHooks } from './utils/hooks/image-analyzer-profile-hook-injector';
 import {
+  applyImageAnalysisRuntimeOverrides,
   getImageAnalysisHookEnv,
-  installImageAnalyzerHook,
+  prepareImageAnalysisFallbackHook,
   resolveImageAnalysisRuntimeStatus,
 } from './utils/hooks';
 import { fail, info, warn } from './utils/ui';
@@ -74,7 +80,11 @@ import {
   resolveDroidReasoningRuntime,
 } from './targets/droid-reasoning-runtime';
 import { DroidCommandRouterError, routeDroidCommandArgs } from './targets/droid-command-router';
-import { resolveCliproxyBridgeMetadata } from './api/services/cliproxy-profile-bridge';
+import {
+  resolveCliproxyBridgeMetadata,
+  resolveCliproxyBridgeProfile,
+} from './api/services/cliproxy-profile-bridge';
+import { getEffectiveApiKey } from './cliproxy/auth-token-manager';
 
 // Version and Update check utilities
 import { getVersion } from './utils/version';
@@ -685,7 +695,10 @@ async function main(): Promise<void> {
       // CLIPROXY FLOW: OAuth-based profiles (gemini, codex, agy, qwen) or user-defined variants
       if (resolvedTarget === 'claude') {
         ensureWebSearchMcpOrThrow();
+        ensureImageAnalysisMcpOrThrow();
       }
+      const imageAnalysisFallbackHookReady =
+        resolvedTarget === 'claude' ? prepareImageAnalysisFallbackHook() : false;
       const provider = profileInfo.provider || (profileInfo.name as CLIProxyProvider);
       // Inject Image Analyzer hook into profile settings before launch
       ensureImageAnalyzerHooks({
@@ -694,6 +707,7 @@ async function main(): Promise<void> {
         cliproxyProvider: provider,
         isComposite: profileInfo.isComposite,
         settingsPath: profileInfo.settingsPath ? expandPath(profileInfo.settingsPath) : undefined,
+        sharedHookInstalled: imageAnalysisFallbackHookReady,
       });
       const customSettingsPath = profileInfo.settingsPath; // undefined for hardcoded profiles
       const variantPort = profileInfo.port; // variant-specific port for isolation
@@ -848,11 +862,14 @@ async function main(): Promise<void> {
     } else if (profileInfo.type === 'copilot') {
       // COPILOT FLOW: GitHub Copilot subscription via copilot-api proxy
       ensureWebSearchMcpOrThrow();
-      installImageAnalyzerHook();
+      ensureImageAnalysisMcpOrThrow();
+      const imageAnalysisFallbackHookReady =
+        resolvedTarget === 'claude' ? prepareImageAnalysisFallbackHook() : false;
       // Inject Image Analyzer hook into profile settings before launch
       ensureImageAnalyzerHooks({
         profileName: profileInfo.name,
         profileType: profileInfo.type,
+        sharedHookInstalled: imageAnalysisFallbackHookReady,
       });
 
       const { executeCopilotProfile } = await import('./copilot');
@@ -884,7 +901,7 @@ async function main(): Promise<void> {
       // Settings-based profiles (glm, glmt) are third-party providers
       if (resolvedTarget === 'claude') {
         ensureWebSearchMcpOrThrow();
-        installImageAnalyzerHook();
+        ensureImageAnalysisMcpOrThrow();
       }
 
       // Display WebSearch status (single line, equilibrium UX)
@@ -907,6 +924,9 @@ async function main(): Promise<void> {
       }
       const inheritedClaudeConfigDir = continuityInheritance.claudeConfigDir;
       syncWebSearchMcpToConfigDir(inheritedClaudeConfigDir);
+      syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
+      const imageAnalysisFallbackHookReady =
+        resolvedTarget === 'claude' ? prepareImageAnalysisFallbackHook() : false;
       const expandedSettingsPath =
         resolvedSettingsPath ??
         (profileInfo.settingsPath
@@ -920,6 +940,7 @@ async function main(): Promise<void> {
         settingsPath: expandedSettingsPath,
         settings,
         cliproxyBridge,
+        sharedHookInstalled: imageAnalysisFallbackHookReady,
       });
       if (resolvedTarget !== 'claude') {
         const compatibility = evaluateTargetRuntimeCompatibility({
@@ -1022,12 +1043,23 @@ async function main(): Promise<void> {
         profileType: profileInfo.type,
         settings,
         cliproxyBridge,
+        sharedHookInstalled: imageAnalysisFallbackHookReady,
       });
+      const currentBridgeAuthToken = cliproxyBridge
+        ? resolveCliproxyBridgeProfile(cliproxyBridge.provider).apiKey
+        : getEffectiveApiKey();
       let imageAnalysisEnv = getImageAnalysisHookEnv({
         profileName: profileInfo.name,
         profileType: profileInfo.type,
         settings,
         cliproxyBridge,
+      });
+      imageAnalysisEnv = applyImageAnalysisRuntimeOverrides(imageAnalysisEnv, {
+        backendId: imageAnalysisStatus.backendId,
+        model: imageAnalysisStatus.model,
+        runtimePath: imageAnalysisStatus.runtimePath,
+        baseUrl: cliproxyBridge?.currentBaseUrl || '',
+        apiKey: currentBridgeAuthToken,
       });
 
       const imageAnalysisProvider = imageAnalysisEnv['CCS_CURRENT_PROVIDER'];
@@ -1130,7 +1162,7 @@ async function main(): Promise<void> {
       const launchArgs = [
         '--settings',
         expandedSettingsPath,
-        ...appendThirdPartyWebSearchToolArgs(remainingArgs),
+        ...appendThirdPartyWebSearchToolArgs(appendThirdPartyImageAnalysisToolArgs(remainingArgs)),
       ];
       const traceEnv = createWebSearchTraceContext({
         launcher: 'ccs.settings-profile',

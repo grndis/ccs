@@ -70,15 +70,17 @@ export async function runImageAnalysisCheck(results: HealthCheck): Promise<void>
   if (!cliproxyAvailable) {
     results.details['Image Analysis'] = {
       status: 'WARN',
-      info: `Enabled but CLIProxy not running`,
+      info: 'Enabled; local CLIProxy will start on launch if needed',
     };
     results.warnings.push({
       name: 'Image Analysis',
-      message: 'CLIProxy not running - image analysis will fail',
-      fix: 'ccs config (starts CLIProxy)',
+      message:
+        'CLIProxy not running yet - CCS will start it automatically when ImageAnalysis is used',
+      fix: 'Optional warm-up: ccs config',
     });
-    console.log(`  ${warn('CLIProxy:')} Not running at http://127.0.0.1:${CLIPROXY_DEFAULT_PORT}`);
-    console.log(`  ${dim('Note:')} Start with: ccs config`);
+    console.log(
+      `  ${warn('CLIProxy:')} Idle at http://127.0.0.1:${CLIPROXY_DEFAULT_PORT} (auto-start on launch)`
+    );
     return;
   }
   console.log(`  ${ok('CLIProxy:')} Available at http://127.0.0.1:${CLIPROXY_DEFAULT_PORT}`);

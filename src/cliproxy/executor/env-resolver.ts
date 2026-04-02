@@ -20,7 +20,10 @@ import { applyExtendedContextConfig } from '../config/extended-context-config';
 import { CLIProxyProvider } from '../types';
 import { CompositeTierConfig } from '../../config/unified-config-types';
 import { getWebSearchHookEnv } from '../../utils/websearch-manager';
-import { getImageAnalysisHookEnv } from '../../utils/hooks/get-image-analysis-hook-env';
+import {
+  applyImageAnalysisRuntimeOverrides,
+  getImageAnalysisHookEnv,
+} from '../../utils/hooks/get-image-analysis-hook-env';
 import { resolveImageAnalysisRuntimeStatus } from '../../utils/hooks/image-analysis-runtime-status';
 import { hasImageAnalysisProfileHook } from '../../utils/hooks/image-analyzer-profile-hook-injector';
 import { hasImageAnalyzerHook } from '../../utils/hooks/image-analyzer-hook-installer';
@@ -30,6 +33,7 @@ import { ToolSanitizationProxy } from '../tool-sanitization-proxy';
 import { HttpsTunnelProxy } from '../https-tunnel-proxy';
 import { MODEL_ENV_VAR_KEYS, normalizeModelIdForProvider } from '../model-id-normalizer';
 import type { ProxyTarget } from '../proxy-target-resolver';
+import { getEffectiveApiKey } from '../auth-token-manager';
 import { isSettings, type Settings } from '../../types/config';
 
 export interface RemoteProxyConfig {
@@ -76,6 +80,7 @@ interface CliproxyImageAnalysisDeps {
   hasImageAnalysisProfileHook: typeof hasImageAnalysisProfileHook;
   hasImageAnalyzerHook: typeof hasImageAnalyzerHook;
   resolveImageAnalysisRuntimeStatus: typeof resolveImageAnalysisRuntimeStatus;
+  getLocalRuntimeApiKey: typeof getEffectiveApiKey;
 }
 
 interface ResolveCliproxyImageAnalysisEnvOptions {
@@ -97,6 +102,7 @@ const defaultCliproxyImageAnalysisDeps: CliproxyImageAnalysisDeps = {
   hasImageAnalysisProfileHook,
   hasImageAnalyzerHook,
   resolveImageAnalysisRuntimeStatus,
+  getLocalRuntimeApiKey: getEffectiveApiKey,
 };
 
 const CODEX_EFFORT_SUFFIX_REGEX = /^(.*)-(xhigh|high|medium)$/i;
@@ -148,6 +154,14 @@ function loadImageAnalysisSettings(settingsPath?: string): Settings | undefined 
   }
 }
 
+function buildDirectProxyBaseUrl(target: ProxyTarget): string {
+  const isDefaultPort =
+    (target.protocol === 'https' && target.port === 443) ||
+    (target.protocol === 'http' && target.port === 80);
+  const portSuffix = isDefaultPort ? '' : `:${target.port}`;
+  return `${target.protocol}://${target.host}${portSuffix}`;
+}
+
 export async function resolveCliproxyImageAnalysisEnv(
   options: ResolveCliproxyImageAnalysisEnvOptions,
   deps: Partial<CliproxyImageAnalysisDeps> = {}
@@ -190,7 +204,18 @@ export async function resolveCliproxyImageAnalysisEnv(
     };
   }
 
-  return { env, warning: null };
+  return {
+    env: applyImageAnalysisRuntimeOverrides(env, {
+      backendId: status.backendId,
+      model: status.model,
+      runtimePath: status.runtimePath,
+      baseUrl: buildDirectProxyBaseUrl(options.proxyTarget),
+      apiKey: options.proxyTarget.isRemote
+        ? options.proxyTarget.authToken || ''
+        : resolvedDeps.getLocalRuntimeApiKey(),
+    }),
+    warning: null,
+  };
 }
 
 /**

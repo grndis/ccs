@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { CopilotConfig } from '../config/unified-config-types';
 import { getGlobalEnvConfig } from '../config/unified-config-loader';
 import { ensureCliproxyService } from '../cliproxy';
+import { getEffectiveApiKey } from '../cliproxy/auth-token-manager';
 import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 import { checkAuthStatus, isCopilotApiInstalled } from './copilot-auth';
 import { isDaemonRunning, startDaemon } from './copilot-daemon';
@@ -22,13 +23,23 @@ import {
   createWebSearchTraceContext,
   syncWebSearchMcpToConfigDir,
 } from '../utils/websearch-manager';
-import { getImageAnalysisHookEnv, resolveImageAnalysisRuntimeStatus } from '../utils/hooks';
+import {
+  appendThirdPartyImageAnalysisToolArgs,
+  ensureImageAnalysisMcpOrThrow,
+  syncImageAnalysisMcpToConfigDir,
+} from '../utils/image-analysis';
+import {
+  applyImageAnalysisRuntimeOverrides,
+  getImageAnalysisHookEnv,
+  resolveImageAnalysisRuntimeStatus,
+} from '../utils/hooks';
 import { stripClaudeCodeEnv } from '../utils/shell-executor';
 
 interface CopilotImageAnalysisDeps {
   ensureCliproxyService: typeof ensureCliproxyService;
   getImageAnalysisHookEnv: typeof getImageAnalysisHookEnv;
   resolveImageAnalysisRuntimeStatus: typeof resolveImageAnalysisRuntimeStatus;
+  getLocalRuntimeApiKey: typeof getEffectiveApiKey;
 }
 
 interface CopilotImageAnalysisResolution {
@@ -96,6 +107,7 @@ export async function resolveCopilotImageAnalysisEnv(
     ensureCliproxyService,
     getImageAnalysisHookEnv,
     resolveImageAnalysisRuntimeStatus,
+    getLocalRuntimeApiKey: getEffectiveApiKey,
     ...deps,
   };
 
@@ -141,7 +153,16 @@ export async function resolveCopilotImageAnalysisEnv(
     }
   }
 
-  return { env, warning: null };
+  return {
+    env: applyImageAnalysisRuntimeOverrides(env, {
+      backendId: status.backendId,
+      model: status.model,
+      runtimePath: status.runtimePath,
+      baseUrl: `http://127.0.0.1:${CLIPROXY_DEFAULT_PORT}`,
+      apiKey: resolvedDeps.getLocalRuntimeApiKey(),
+    }),
+    warning: null,
+  };
 }
 
 /**
@@ -251,11 +272,15 @@ export async function executeCopilotProfile(
   }
   console.log('');
 
+  ensureImageAnalysisMcpOrThrow();
   syncWebSearchMcpToConfigDir(claudeConfigDir);
+  syncImageAnalysisMcpToConfigDir(claudeConfigDir);
 
   // Spawn Claude CLI
   return new Promise((resolve) => {
-    const launchArgs = appendThirdPartyWebSearchToolArgs(claudeArgs);
+    const launchArgs = appendThirdPartyWebSearchToolArgs(
+      appendThirdPartyImageAnalysisToolArgs(claudeArgs)
+    );
     const traceEnv = createWebSearchTraceContext({
       launcher: 'copilot.executor',
       args: launchArgs,
