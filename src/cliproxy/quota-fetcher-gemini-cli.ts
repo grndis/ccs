@@ -639,6 +639,11 @@ async function fetchWithAuthData(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const supplementaryPromise = fetchGeminiCliSupplementary(
+    authData.accessToken,
+    authData.projectId,
+    verbose
+  );
 
   try {
     const response = await fetch(GEMINI_CLI_QUOTA_URL, {
@@ -668,11 +673,7 @@ async function fetchWithAuthData(
     const data = (await response.json()) as GeminiCliQuotaResponse;
     const rawBuckets = data.buckets || [];
     const buckets = buildGeminiCliBuckets(rawBuckets);
-    const supplementary = await fetchGeminiCliSupplementary(
-      authData.accessToken,
-      authData.projectId,
-      verbose
-    );
+    const supplementary = await supplementaryPromise;
 
     if (verbose) console.error(`[i] Gemini CLI buckets found: ${buckets.length}`);
 

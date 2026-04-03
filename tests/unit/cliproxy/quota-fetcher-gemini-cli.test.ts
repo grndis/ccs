@@ -448,6 +448,43 @@ describe('Gemini CLI Quota Fetcher', () => {
       expect(result.creditBalance).toBeNull();
       expect(result.buckets[0].remainingPercent).toBe(75);
     });
+
+    it('keeps base quota success when supplementary metadata throws a network error', async () => {
+      writeActiveGeminiAccount('supplementary-network@example.com');
+
+      mockFetch([
+        {
+          url: GEMINI_QUOTA_URL,
+          method: 'POST',
+          status: 200,
+          response: {
+            buckets: [{ model_id: 'gemini-3-flash-preview', remaining_fraction: 0.75 }],
+          },
+        },
+      ]);
+
+      const mockedFetch = globalThis.fetch;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (url === GEMINI_CODE_ASSIST_URL) {
+          throw new TypeError('supplementary network down');
+        }
+        return mockedFetch(input, init);
+      }) as typeof fetch;
+
+      try {
+        const result = await fetchGeminiCliQuota('supplementary-network@example.com');
+
+        expect(result.success).toBe(true);
+        expect(result.tierLabel).toBeNull();
+        expect(result.tierId).toBeNull();
+        expect(result.creditBalance).toBeNull();
+        expect(result.buckets[0].remainingPercent).toBe(75);
+      } finally {
+        globalThis.fetch = mockedFetch;
+      }
+    });
   });
 
   describe('fetchGeminiCliQuota failure metadata', () => {
