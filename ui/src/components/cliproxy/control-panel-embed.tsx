@@ -1,12 +1,12 @@
 /**
  * CLIProxy Control Panel Embed
  *
- * Embeds the CLIProxy management.html with auto-authentication.
- * Uses postMessage to inject credentials into the iframe.
- * Supports both local and remote CLIProxy server connections.
+ * Embeds the CLIProxy management.html with dashboard-aware authentication.
+ * Local embeds run through the dashboard reverse proxy and need the upstream
+ * management app's auth state pre-seeded before the iframe loads.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { RefreshCw, AlertCircle, Gauge } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api, withApiBase } from '@/lib/api-client';
@@ -22,9 +22,41 @@ interface ControlPanelEmbedProps {
   port?: number;
 }
 
+const CONTROL_PANEL_AUTH_STORAGE_KEY = 'cli-proxy-auth';
+const CONTROL_PANEL_LOGIN_FLAG_KEY = 'isLoggedIn';
+const CONTROL_PANEL_API_BASE_KEY = 'apiBase';
+const CONTROL_PANEL_API_URL_KEY = 'apiUrl';
+const CONTROL_PANEL_MANAGEMENT_KEY = 'managementKey';
+
+function resolveEmbeddedApiBase(checkUrl: string): string {
+  if (checkUrl.startsWith('/')) {
+    return new URL(checkUrl.replace(/\/$/, ''), window.location.origin).href;
+  }
+
+  return checkUrl.replace(/\/$/, '');
+}
+
+function seedLocalControlPanelSession(apiBase: string, managementKey: string): void {
+  // The upstream management-center app restores auth from these legacy keys.
+  // Clear the persisted auth snapshot first so stale iframe state cannot win.
+  window.localStorage.removeItem(CONTROL_PANEL_AUTH_STORAGE_KEY);
+  window.localStorage.setItem(CONTROL_PANEL_API_BASE_KEY, apiBase);
+  window.localStorage.setItem(CONTROL_PANEL_API_URL_KEY, apiBase);
+  window.localStorage.setItem(CONTROL_PANEL_MANAGEMENT_KEY, managementKey);
+  window.localStorage.setItem(CONTROL_PANEL_LOGIN_FLAG_KEY, 'true');
+}
+
+function clearLocalControlPanelSession(): void {
+  window.localStorage.removeItem(CONTROL_PANEL_AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(CONTROL_PANEL_API_BASE_KEY);
+  window.localStorage.removeItem(CONTROL_PANEL_API_URL_KEY);
+  window.localStorage.removeItem(CONTROL_PANEL_MANAGEMENT_KEY);
+  window.localStorage.removeItem(CONTROL_PANEL_LOGIN_FLAG_KEY);
+}
+
 export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanelEmbedProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+  const [loadedFrameKey, setLoadedFrameKey] = useState<string | null>(null);
   const [iframeRevision, setIframeRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -36,23 +68,41 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
     staleTime: 30000, // 30 seconds
   });
 
-  // Fetch auth tokens for local mode (gets effective management secret)
-  const { data: authTokens } = useQuery<AuthTokensResponse>({
-    queryKey: ['auth-tokens-raw'],
-    queryFn: async () => {
-      const response = await fetch(withApiBase('/settings/auth/tokens/raw'));
-      if (!response.ok) throw new Error('Failed to fetch auth tokens');
-      return response.json();
-    },
-    staleTime: 30000, // 30 seconds
-  });
-
   // Log config fetch errors (fallback to local mode on error)
   useEffect(() => {
     if (configError) {
       console.warn('[ControlPanelEmbed] Config fetch failed, using local mode:', configError);
     }
   }, [configError]);
+
+  const isRemoteConfig = Boolean(cliproxyConfig?.remote?.enabled && cliproxyConfig?.remote?.host);
+
+  // Fetch auth tokens for local mode and seed the upstream auth keys before the iframe mounts.
+  const { data: authTokens, error: authTokensError } = useQuery<AuthTokensResponse>({
+    queryKey: ['auth-tokens-raw', isRemoteConfig ? 'remote' : 'local'],
+    enabled: cliproxyConfig !== undefined && !isRemoteConfig,
+    queryFn: async () => {
+      try {
+        const response = await fetch(withApiBase('/settings/auth/tokens/raw'));
+        if (!response.ok) throw new Error('Failed to fetch auth tokens');
+
+        const tokens = (await response.json()) as AuthTokensResponse;
+        const managementSecret = tokens.managementSecret.value.trim();
+        if (!managementSecret) throw new Error('Management secret missing');
+
+        seedLocalControlPanelSession(
+          resolveEmbeddedApiBase(withApiBase('/cliproxy-local/')),
+          managementSecret
+        );
+
+        return tokens;
+      } catch (error) {
+        clearLocalControlPanelSession();
+        throw error;
+      }
+    },
+    staleTime: 30000, // 30 seconds
+  });
 
   // Calculate URLs and settings based on remote or local mode
   const { managementUrl, checkUrl, authToken, isRemote, displayHost } = useMemo(() => {
@@ -81,18 +131,58 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
 
     // Local mode - proxy through dashboard server to avoid cross-origin/port issues
     // (e.g., in Docker the browser cannot reach the internal CLIProxy port directly)
-    const effectiveSecret = authTokens?.managementSecret?.value || 'ccs';
     return {
       managementUrl: withApiBase('/cliproxy-local/management.html'),
       checkUrl: withApiBase('/cliproxy-local/'),
-      authToken: effectiveSecret,
+      authToken: authTokens?.managementSecret?.value || undefined,
       isRemote: false,
       displayHost: `localhost:${localPort}`,
     };
   }, [cliproxyConfig, authTokens, port]);
 
-  const iframeLoaded = loadedUrl === managementUrl;
-  const isLoading = !iframeLoaded;
+  const iframeKey = `${managementUrl}:${isRemote ? 'remote' : 'local'}:${checkUrl}:${authToken ?? 'missing'}:${iframeRevision}`;
+  const isSessionReady =
+    cliproxyConfig !== undefined && (isRemote || Boolean(authTokens) || Boolean(authTokensError));
+
+  useEffect(() => {
+    if (authTokensError) {
+      console.warn(
+        '[ControlPanelEmbed] Failed to preload local control panel session, falling back to manual login:',
+        authTokensError
+      );
+    }
+  }, [authTokensError]);
+
+  const iframeLoaded = loadedFrameKey === iframeKey;
+  const isLoading = !isSessionReady || !iframeLoaded;
+
+  const postRemoteAutoLoginCredentials = () => {
+    if (!isRemote || !iframeRef.current?.contentWindow || !authToken) {
+      return;
+    }
+
+    try {
+      const apiBase = resolveEmbeddedApiBase(checkUrl);
+      const targetOrigin = new URL(`${apiBase}/`).origin;
+      const iframeUrl = new URL(iframeRef.current.src, window.location.origin);
+
+      if (iframeUrl.origin !== targetOrigin) {
+        console.warn('[ControlPanelEmbed] Remote iframe origin mismatch, skipping postMessage');
+        return;
+      }
+
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'ccs-auto-login',
+          apiBase,
+          managementKey: authToken,
+        },
+        targetOrigin
+      );
+    } catch (error) {
+      console.debug('[ControlPanelEmbed] Remote postMessage bootstrap failed:', error);
+    }
+  };
 
   // Check if CLIProxy is running
   useEffect(() => {
@@ -159,58 +249,13 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
     };
   }, [checkUrl, isRemote, displayHost, cliproxyConfig]);
 
-  const postAutoLoginCredentials = useCallback(() => {
-    // Auto-login can only run when iframe has loaded and authToken is available.
-    if (!iframeLoaded || !iframeRef.current?.contentWindow || !authToken) {
-      return;
-    }
-
-    try {
-      // Derive apiBase and targetOrigin from checkUrl.
-      // Local mode uses the same-origin dashboard proxy; remote mode stays absolute.
-      const apiBase = checkUrl.startsWith('/')
-        ? new URL(checkUrl.replace(/\/$/, ''), window.location.origin).href
-        : checkUrl.replace(/\/$/, '');
-      const apiBaseUrl = new URL(`${apiBase}/`);
-      const targetOrigin = apiBaseUrl.origin;
-
-      // Security: Validate iframe src matches the expected origin/path before sending credentials.
-      const iframeUrl = new URL(iframeRef.current.src, window.location.origin);
-      if (
-        iframeUrl.origin !== apiBaseUrl.origin ||
-        !iframeUrl.pathname.startsWith(apiBaseUrl.pathname)
-      ) {
-        console.warn('[ControlPanelEmbed] Iframe origin mismatch, skipping postMessage');
-        return;
-      }
-
-      // Send credentials to iframe
-      iframeRef.current.contentWindow.postMessage(
-        {
-          type: 'ccs-auto-login',
-          apiBase,
-          managementKey: authToken,
-        },
-        targetOrigin
-      );
-    } catch (e) {
-      // Cross-origin restriction - expected if not same origin
-      console.debug('[ControlPanelEmbed] postMessage failed - cross-origin:', e);
-    }
-  }, [authToken, checkUrl, iframeLoaded]);
-
-  // Retry auto-login when token/checkUrl arrive after iframe onLoad.
-  useEffect(() => {
-    postAutoLoginCredentials();
-  }, [postAutoLoginCredentials]);
-
-  // Handle iframe load - mark ready then let effect post credentials.
-  const handleIframeLoad = useCallback(() => {
-    setLoadedUrl(managementUrl);
-  }, [managementUrl]);
+  const handleIframeLoad = () => {
+    setLoadedFrameKey(iframeKey);
+    postRemoteAutoLoginCredentials();
+  };
 
   const handleRefresh = () => {
-    setLoadedUrl(null);
+    setLoadedFrameKey(null);
     setIframeRevision((value) => value + 1);
     setError(null);
     setIsConnected(false);
@@ -269,14 +314,16 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
         )}
 
         {/* Iframe */}
-        <iframe
-          key={`${managementUrl}:${iframeRevision}`}
-          ref={iframeRef}
-          src={managementUrl}
-          className="flex-1 w-full border-0"
-          title="CLIProxy Management Panel"
-          onLoad={handleIframeLoad}
-        />
+        {isSessionReady ? (
+          <iframe
+            key={iframeKey}
+            ref={iframeRef}
+            src={managementUrl}
+            className="flex-1 w-full border-0"
+            title="CLIProxy Management Panel"
+            onLoad={handleIframeLoad}
+          />
+        ) : null}
       </div>
     </div>
   );
