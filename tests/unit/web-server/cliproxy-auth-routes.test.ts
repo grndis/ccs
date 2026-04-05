@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  getKiroStartIDCValidationError,
   getStartAuthFailureMessage,
   getStartAuthNicknameError,
   getStartUrlUnsupportedReason,
@@ -35,6 +36,44 @@ describe('cliproxy-auth-routes start-url guard', () => {
     expect(getStartUrlUnsupportedReason('gemini')).toBeNull();
     expect(getStartUrlUnsupportedReason('codex')).toBeNull();
     expect(getStartUrlUnsupportedReason('claude')).toBeNull();
+  });
+});
+
+describe('cliproxy-auth-routes Kiro IDC start validation', () => {
+  it('requires an IDC start URL when idc auth is selected', () => {
+    expect(
+      getKiroStartIDCValidationError({
+        kiroMethod: 'idc',
+        kiroIDCStartUrl: undefined,
+        invalidKiroIDCFlow: false,
+      })
+    ).toEqual({
+      error: 'Kiro IDC login requires kiroIDCStartUrl',
+      code: 'MISSING_KIRO_IDC_START_URL',
+    });
+  });
+
+  it('rejects invalid IDC flow values before triggerOAuth is called', () => {
+    expect(
+      getKiroStartIDCValidationError({
+        kiroMethod: 'idc',
+        kiroIDCStartUrl: 'https://d-123.awsapps.com/start',
+        invalidKiroIDCFlow: true,
+      })
+    ).toEqual({
+      error: 'Invalid kiroIDCFlow. Supported: authcode, device',
+      code: 'INVALID_KIRO_IDC_FLOW',
+    });
+  });
+
+  it('allows valid IDC start payloads through', () => {
+    expect(
+      getKiroStartIDCValidationError({
+        kiroMethod: 'idc',
+        kiroIDCStartUrl: 'https://d-123.awsapps.com/start',
+        invalidKiroIDCFlow: false,
+      })
+    ).toBeNull();
   });
 });
 

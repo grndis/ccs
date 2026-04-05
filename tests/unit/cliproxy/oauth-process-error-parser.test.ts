@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { extractLikelyAuthFailureFromStderr } from '../../../src/cliproxy/auth/oauth-process';
+import {
+  extractLikelyAuthFailureFromStderr,
+  getExpectedLocalCallback,
+  validateManualCallbackUrl,
+} from '../../../src/cliproxy/auth/oauth-process';
 
 describe('oauth-process stderr parsing', () => {
   it('ignores non-ghcp providers', () => {
@@ -31,5 +35,52 @@ describe('oauth-process stderr parsing', () => {
     const parsed = extractLikelyAuthFailureFromStderr('ghcp', stderr);
     expect(parsed).not.toBeNull();
     expect((parsed as string).length).toBe(240);
+  });
+});
+
+describe('oauth-process manual callback validation', () => {
+  const authUrl =
+    'https://oidc.example.com/authorize?redirect_uri=http%3A%2F%2F127.0.0.1%3A9876%2Foauth%2Fcallback&state=test-state';
+
+  it('extracts the expected local callback target from the auth URL', () => {
+    expect(getExpectedLocalCallback(authUrl)).toEqual({
+      origin: 'http://127.0.0.1:9876',
+      pathname: '/oauth/callback',
+      state: 'test-state',
+    });
+  });
+
+  it('accepts matching loopback callback URLs', () => {
+    expect(
+      validateManualCallbackUrl(
+        'http://127.0.0.1:9876/oauth/callback?code=abc123&state=test-state',
+        authUrl
+      )
+    ).toBeNull();
+  });
+
+  it('rejects non-loopback callback URLs', () => {
+    expect(
+      validateManualCallbackUrl(
+        'https://evil.example.com/oauth/callback?code=abc123&state=test-state',
+        authUrl
+      )
+    ).toContain('local OAuth callback server');
+  });
+
+  it('rejects callback URLs with the wrong path or state', () => {
+    expect(
+      validateManualCallbackUrl(
+        'http://127.0.0.1:9876/not-the-callback?code=abc123&state=test-state',
+        authUrl
+      )
+    ).toContain('expected local OAuth callback target');
+
+    expect(
+      validateManualCallbackUrl(
+        'http://127.0.0.1:9876/oauth/callback?code=abc123&state=wrong-state',
+        authUrl
+      )
+    ).toContain('state does not match');
   });
 });

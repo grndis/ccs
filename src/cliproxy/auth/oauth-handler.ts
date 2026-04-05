@@ -343,6 +343,17 @@ function buildOAuthArgs(
   return args;
 }
 
+export function usesKiroLocalCallbackReplay(
+  method: OAuthOptions['kiroMethod'],
+  idcFlow: OAuthOptions['kiroIDCFlow']
+): boolean {
+  const normalizedMethod = normalizeKiroAuthMethod(method);
+  if (normalizedMethod === 'aws-authcode') {
+    return true;
+  }
+  return normalizedMethod === 'idc' && normalizeKiroIDCFlow(idcFlow) === 'authcode';
+}
+
 /**
  * Handle paste-callback mode: show auth URL, prompt for callback paste
  * Uses proxy target resolver to connect to correct CLIProxyAPI instance (local or remote)
@@ -581,10 +592,7 @@ export async function triggerOAuth(
     provider === 'kiro'
       ? isKiroDeviceCodeMethod(resolvedKiroMethod, { idcFlow: resolvedKiroIDCFlow })
       : callbackPort === null;
-  const useKiroLocalPasteCallback =
-    options.pasteCallback === true && provider === 'kiro' && !isDeviceCodeFlow;
-  const useKiroDirectCliFlow =
-    provider === 'kiro' && (isDeviceCodeFlow || useKiroLocalPasteCallback);
+  let selectedPasteCallback = options.pasteCallback === true;
 
   if (provider === 'kiro' && !isKiroCLIAuthMethod(resolvedKiroMethod)) {
     console.log(fail(`Kiro auth method '${resolvedKiroMethod}' is not supported by CLI flow.`));
@@ -594,33 +602,24 @@ export async function triggerOAuth(
 
   // Interactive mode selection for headless environments
   // Skip if explicit mode flag provided or device code flow (no callback needed)
-  if (headless && !options.pasteCallback && !options.portForward && !isDeviceCodeFlow) {
+  if (headless && !selectedPasteCallback && !options.portForward && !isDeviceCodeFlow) {
     // Non-interactive environment (piped input) - default to paste mode
     if (!process.stdin.isTTY) {
-      const tokenDir = getProviderTokenDir(provider);
-      return handlePasteCallbackMode(
-        provider,
-        oauthConfig,
-        verbose,
-        tokenDir,
-        nickname,
-        existingNameMatch?.id
-      );
+      selectedPasteCallback = true;
+    } else {
+      const mode = await promptOAuthModeChoice(callbackPort);
+      if (mode === 'paste') {
+        selectedPasteCallback = true;
+      }
     }
-    const mode = await promptOAuthModeChoice(callbackPort);
-    if (mode === 'paste') {
-      const tokenDir = getProviderTokenDir(provider);
-      return handlePasteCallbackMode(
-        provider,
-        oauthConfig,
-        verbose,
-        tokenDir,
-        nickname,
-        existingNameMatch?.id
-      );
-    }
-    // mode === 'forward' continues to existing port-forwarding flow below
   }
+
+  const useSelectedKiroLocalPasteCallback =
+    selectedPasteCallback &&
+    provider === 'kiro' &&
+    usesKiroLocalCallbackReplay(resolvedKiroMethod, resolvedKiroIDCFlow);
+  const useSelectedKiroDirectCliFlow =
+    provider === 'kiro' && (isDeviceCodeFlow || useSelectedKiroLocalPasteCallback);
 
   if (existingAccounts.length > 0 && !add) {
     console.log('');
@@ -636,7 +635,7 @@ export async function triggerOAuth(
     }
   }
 
-  if (options.pasteCallback && !useKiroDirectCliFlow) {
+  if (selectedPasteCallback && !useSelectedKiroDirectCliFlow) {
     const tokenDir = getProviderTokenDir(provider);
     return handlePasteCallbackMode(
       provider,
@@ -671,7 +670,7 @@ export async function triggerOAuth(
     }
   }
 
-  const processHeadless = options.pasteCallback && provider === 'kiro' ? true : headless;
+  const processHeadless = selectedPasteCallback && provider === 'kiro' ? true : headless;
   let args: string[];
   try {
     args = buildOAuthArgs(provider, configPath, processHeadless, noIncognito, {
@@ -694,7 +693,7 @@ export async function triggerOAuth(
     showStep(2, 4, 'progress', `Starting callback server on port ${callbackPort}...`);
 
     // Show headless instructions (only for authorization code flows)
-    if (useKiroLocalPasteCallback) {
+    if (useSelectedKiroLocalPasteCallback) {
       console.log('');
       console.log(info('Paste-callback mode enabled for Kiro CLI auth.'));
       console.log(
@@ -728,7 +727,7 @@ export async function triggerOAuth(
     expectedAccountId: existingNameMatch?.id,
     authFlowType: isDeviceCodeFlow ? 'device_code' : 'authorization_code',
     kiroMethod: provider === 'kiro' ? resolvedKiroMethod : undefined,
-    manualCallback: useKiroLocalPasteCallback,
+    manualCallback: useSelectedKiroLocalPasteCallback,
   });
 
   // Show hint for Kiro users about --no-incognito option (first-time auth only)

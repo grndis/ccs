@@ -117,6 +117,34 @@ const DEFAULT_CONFIG: ExecutorConfig = {
   pollInterval: 100,
 };
 
+export function readOptionValue(
+  args: string[],
+  flag: string
+): { present: boolean; value?: string; missingValue: boolean } {
+  const inlinePrefix = `${flag}=`;
+  const inlineArg = args.find((arg) => arg.startsWith(inlinePrefix));
+  if (inlineArg !== undefined) {
+    const value = inlineArg.slice(inlinePrefix.length).trim();
+    return {
+      present: true,
+      value: value.length > 0 ? value : undefined,
+      missingValue: value.length === 0,
+    };
+  }
+
+  const index = args.indexOf(flag);
+  if (index === -1) {
+    return { present: false, missingValue: false };
+  }
+
+  const next = args[index + 1];
+  if (!next || next.startsWith('-')) {
+    return { present: true, missingValue: true };
+  }
+
+  return { present: true, value: next.trim(), missingValue: false };
+}
+
 /**
  * Execute Claude CLI with CLIProxy (main entry point)
  *
@@ -346,10 +374,10 @@ export async function execClaudeWithCLIProxy(
 
   // Parse --kiro-auth-method flag
   let kiroAuthMethod: KiroAuthMethod | undefined;
-  const kiroMethodIdx = argsWithoutProxy.indexOf('--kiro-auth-method');
-  if (kiroMethodIdx !== -1) {
-    const rawMethod = argsWithoutProxy[kiroMethodIdx + 1];
-    if (!rawMethod || rawMethod.startsWith('-')) {
+  const kiroMethodValue = readOptionValue(argsWithoutProxy, '--kiro-auth-method');
+  if (kiroMethodValue.present) {
+    const rawMethod = kiroMethodValue.value;
+    if (kiroMethodValue.missingValue || !rawMethod) {
       console.error(fail('--kiro-auth-method requires a value'));
       console.error('    Supported values: aws, aws-authcode, google, github, idc');
       process.exitCode = 1;
@@ -366,38 +394,30 @@ export async function execClaudeWithCLIProxy(
   }
 
   let kiroIDCStartUrl: string | undefined;
-  const kiroIDCStartUrlIdx = argsWithoutProxy.indexOf('--kiro-idc-start-url');
-  if (
-    kiroIDCStartUrlIdx !== -1 &&
-    argsWithoutProxy[kiroIDCStartUrlIdx + 1] &&
-    !argsWithoutProxy[kiroIDCStartUrlIdx + 1].startsWith('-')
-  ) {
-    kiroIDCStartUrl = argsWithoutProxy[kiroIDCStartUrlIdx + 1].trim();
-  } else if (kiroIDCStartUrlIdx !== -1) {
+  const kiroIDCStartUrlValue = readOptionValue(argsWithoutProxy, '--kiro-idc-start-url');
+  if (kiroIDCStartUrlValue.present && kiroIDCStartUrlValue.value) {
+    kiroIDCStartUrl = kiroIDCStartUrlValue.value;
+  } else if (kiroIDCStartUrlValue.present) {
     console.error(fail('--kiro-idc-start-url requires a value'));
     process.exitCode = 1;
     return;
   }
 
   let kiroIDCRegion: string | undefined;
-  const kiroIDCRegionIdx = argsWithoutProxy.indexOf('--kiro-idc-region');
-  if (
-    kiroIDCRegionIdx !== -1 &&
-    argsWithoutProxy[kiroIDCRegionIdx + 1] &&
-    !argsWithoutProxy[kiroIDCRegionIdx + 1].startsWith('-')
-  ) {
-    kiroIDCRegion = argsWithoutProxy[kiroIDCRegionIdx + 1].trim();
-  } else if (kiroIDCRegionIdx !== -1) {
+  const kiroIDCRegionValue = readOptionValue(argsWithoutProxy, '--kiro-idc-region');
+  if (kiroIDCRegionValue.present && kiroIDCRegionValue.value) {
+    kiroIDCRegion = kiroIDCRegionValue.value;
+  } else if (kiroIDCRegionValue.present) {
     console.error(fail('--kiro-idc-region requires a value'));
     process.exitCode = 1;
     return;
   }
 
   let kiroIDCFlow: KiroIDCFlow | undefined;
-  const kiroIDCFlowIdx = argsWithoutProxy.indexOf('--kiro-idc-flow');
-  if (kiroIDCFlowIdx !== -1) {
-    const rawFlow = argsWithoutProxy[kiroIDCFlowIdx + 1];
-    if (!rawFlow || rawFlow.startsWith('-')) {
+  const kiroIDCFlowValue = readOptionValue(argsWithoutProxy, '--kiro-idc-flow');
+  if (kiroIDCFlowValue.present) {
+    const rawFlow = kiroIDCFlowValue.value;
+    if (kiroIDCFlowValue.missingValue || !rawFlow) {
       console.error(fail('--kiro-idc-flow requires a value'));
       console.error('    Supported values: authcode, device');
       process.exitCode = 1;
@@ -1174,6 +1194,10 @@ export async function execClaudeWithCLIProxy(
   ];
   const claudeArgs = argsWithoutProxy.filter((arg, idx) => {
     if (ccsFlags.includes(arg)) return false;
+    if (arg.startsWith('--kiro-auth-method=')) return false;
+    if (arg.startsWith('--kiro-idc-start-url=')) return false;
+    if (arg.startsWith('--kiro-idc-region=')) return false;
+    if (arg.startsWith('--kiro-idc-flow=')) return false;
     if (arg.startsWith('--thinking=')) return false;
     if (arg.startsWith('--effort=')) return false;
     if (arg.startsWith('--1m=') || arg.startsWith('--no-1m=')) return false;

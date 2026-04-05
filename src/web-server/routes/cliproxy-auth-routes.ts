@@ -45,8 +45,11 @@ import {
   CLIPROXY_CALLBACK_PROVIDER_MAP,
   CLIPROXY_AUTH_URL_PROVIDER_MAP,
   isKiroAuthMethod,
+  isKiroIDCFlow,
   isKiroDeviceCodeMethod,
+  KiroIDCFlow,
   KiroAuthMethod,
+  normalizeKiroIDCFlow,
   normalizeKiroAuthMethod,
   toKiroManagementMethod,
 } from '../../cliproxy/auth/auth-types';
@@ -254,6 +257,43 @@ function parseKiroMethod(raw: unknown): { method: KiroAuthMethod; invalid: boole
     return { method: normalizeKiroAuthMethod(), invalid: true };
   }
   return { method: normalizeKiroAuthMethod(normalized), invalid: false };
+}
+
+function parseKiroIDCFlow(raw: unknown): { flow: KiroIDCFlow; invalid: boolean } {
+  if (raw === undefined || raw === null || raw === '') {
+    return { flow: normalizeKiroIDCFlow(), invalid: false };
+  }
+  if (typeof raw !== 'string') {
+    return { flow: normalizeKiroIDCFlow(), invalid: true };
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (!isKiroIDCFlow(normalized)) {
+    return { flow: normalizeKiroIDCFlow(), invalid: true };
+  }
+  return { flow: normalizeKiroIDCFlow(normalized), invalid: false };
+}
+
+export function getKiroStartIDCValidationError(options: {
+  kiroMethod: KiroAuthMethod;
+  kiroIDCStartUrl?: string;
+  invalidKiroIDCFlow?: boolean;
+}): { error: string; code: string } | null {
+  if (options.kiroMethod !== 'idc') {
+    return null;
+  }
+  if (options.invalidKiroIDCFlow) {
+    return {
+      error: 'Invalid kiroIDCFlow. Supported: authcode, device',
+      code: 'INVALID_KIRO_IDC_FLOW',
+    };
+  }
+  if (!options.kiroIDCStartUrl) {
+    return {
+      error: 'Kiro IDC login requires kiroIDCStartUrl',
+      code: 'MISSING_KIRO_IDC_START_URL',
+    };
+  }
+  return null;
 }
 
 export function getStartUrlUnsupportedReason(
@@ -600,6 +640,13 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
   const noIncognitoBody =
     typeof requestBody.noIncognito === 'boolean' ? requestBody.noIncognito : undefined;
   const kiroMethodRaw = requestBody.kiroMethod;
+  const kiroIDCStartUrl =
+    typeof requestBody.kiroIDCStartUrl === 'string'
+      ? requestBody.kiroIDCStartUrl.trim()
+      : undefined;
+  const kiroIDCRegion =
+    typeof requestBody.kiroIDCRegion === 'string' ? requestBody.kiroIDCRegion.trim() : undefined;
+  const kiroIDCFlowRaw = requestBody.kiroIDCFlow;
   const riskAcknowledgement = requestBody.riskAcknowledgement;
   const target = getProxyTarget();
   if (target.isRemote) {
@@ -609,6 +656,7 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
   // Trim nickname for consistency with CLI (oauth-handler.ts trims input)
   const nickname = nicknameRaw?.trim();
   const { method: kiroMethod, invalid: invalidKiroMethod } = parseKiroMethod(kiroMethodRaw);
+  const { flow: kiroIDCFlow, invalid: invalidKiroIDCFlow } = parseKiroIDCFlow(kiroIDCFlowRaw);
 
   // Validate provider
   if (!validProviders.includes(provider as CLIProxyProvider)) {
@@ -622,6 +670,18 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
       code: 'INVALID_KIRO_METHOD',
     });
     return;
+  }
+
+  if (provider === 'kiro') {
+    const kiroIDCValidationError = getKiroStartIDCValidationError({
+      kiroMethod,
+      kiroIDCStartUrl,
+      invalidKiroIDCFlow,
+    });
+    if (kiroIDCValidationError) {
+      res.status(400).json(kiroIDCValidationError);
+      return;
+    }
   }
 
   if (provider === 'agy' && !isAntigravityResponsibilityBypassEnabled()) {
@@ -662,6 +722,9 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
       nickname: nickname || undefined,
       acceptAgyRisk: provider === 'agy',
       kiroMethod: provider === 'kiro' ? kiroMethod : undefined,
+      kiroIDCStartUrl: provider === 'kiro' ? kiroIDCStartUrl : undefined,
+      kiroIDCRegion: provider === 'kiro' ? kiroIDCRegion : undefined,
+      kiroIDCFlow: provider === 'kiro' && kiroMethod === 'idc' ? kiroIDCFlow : undefined,
       fromUI: true, // Enable project selection prompt in UI
       noIncognito, // Kiro: use normal browser if enabled
     });

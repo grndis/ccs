@@ -76,6 +76,20 @@ describe('requestPasteCallbackStart', () => {
   });
 });
 
+describe('usesKiroLocalCallbackReplay', () => {
+  it('limits local callback replay to CLI auth-code flows', async () => {
+    const { usesKiroLocalCallbackReplay } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?kiro-local-callback-mode=${Date.now()}`
+    );
+
+    expect(usesKiroLocalCallbackReplay('aws-authcode', 'authcode')).toBe(true);
+    expect(usesKiroLocalCallbackReplay('idc', 'authcode')).toBe(true);
+    expect(usesKiroLocalCallbackReplay('idc', 'device')).toBe(false);
+    expect(usesKiroLocalCallbackReplay('google', 'authcode')).toBe(false);
+    expect(usesKiroLocalCallbackReplay('aws', 'authcode')).toBe(false);
+  });
+});
+
 describe('resolvePasteCallbackAuthUrl', () => {
   it('returns the immediate auth URL without polling', async () => {
     const { resolvePasteCallbackAuthUrl } = await import(

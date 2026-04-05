@@ -71,6 +71,7 @@ interface ProcessState {
   userCode: string | null;
   kiroMethodSelectionHandled: boolean;
   manualCallbackPrompted: boolean;
+  cancelManualCallbackPrompt: (() => void) | null;
 }
 
 /**
@@ -115,7 +116,86 @@ function resolveAuthFlowType(options: OAuthProcessOptions): 'device_code' | 'aut
   return options.authFlowType || OAUTH_FLOW_TYPES[options.provider] || 'authorization_code';
 }
 
-async function promptManualCallbackUrl(displayName: string): Promise<string | null> {
+export function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return (
+    normalized === '127.0.0.1' ||
+    normalized === 'localhost' ||
+    normalized === '::1' ||
+    normalized === '0:0:0:0:0:0:0:1'
+  );
+}
+
+export function getExpectedLocalCallback(authUrl: string): {
+  origin: string;
+  pathname: string;
+  state: string | null;
+} | null {
+  try {
+    const parsedAuthUrl = new URL(authUrl);
+    const redirectUriRaw = parsedAuthUrl.searchParams.get('redirect_uri');
+    if (!redirectUriRaw) {
+      return null;
+    }
+
+    const redirectUri = new URL(redirectUriRaw);
+    if (!isLoopbackHost(redirectUri.hostname)) {
+      return null;
+    }
+
+    return {
+      origin: redirectUri.origin,
+      pathname: redirectUri.pathname,
+      state: parsedAuthUrl.searchParams.get('state'),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function validateManualCallbackUrl(callbackUrl: string, authUrl: string): string | null {
+  let parsedCallback: URL;
+  try {
+    parsedCallback = new URL(callbackUrl);
+  } catch {
+    return 'Invalid callback URL format';
+  }
+
+  if (!parsedCallback.searchParams.get('code')) {
+    return 'Invalid callback URL: missing code parameter';
+  }
+
+  const expectedCallback = getExpectedLocalCallback(authUrl);
+  if (!expectedCallback) {
+    return 'Unable to determine the expected local callback target';
+  }
+
+  if (!isLoopbackHost(parsedCallback.hostname)) {
+    return 'Callback URL must target the local OAuth callback server';
+  }
+
+  if (
+    parsedCallback.origin !== expectedCallback.origin ||
+    parsedCallback.pathname !== expectedCallback.pathname
+  ) {
+    return 'Callback URL does not match the expected local OAuth callback target';
+  }
+
+  if (expectedCallback.state) {
+    const callbackState = parsedCallback.searchParams.get('state');
+    if (callbackState !== expectedCallback.state) {
+      return 'Callback URL state does not match the active OAuth session';
+    }
+  }
+
+  return null;
+}
+
+async function promptManualCallbackUrl(
+  displayName: string,
+  state: ProcessState,
+  timeoutMs: number
+): Promise<string | null> {
   const readline = await import('readline');
   const rl = readline.createInterface({
     input: process.stdin,
@@ -124,53 +204,71 @@ async function promptManualCallbackUrl(displayName: string): Promise<string | nu
 
   return new Promise<string | null>((resolve) => {
     let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = (value: string | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      state.cancelManualCallbackPrompt = null;
+      resolve(value);
+    };
+
+    state.cancelManualCallbackPrompt = () => {
+      if (!settled) {
+        rl.close();
+        finish(null);
+      }
+    };
 
     rl.on('close', () => {
-      if (!settled) {
-        settled = true;
-        resolve(null);
-      }
+      finish(null);
     });
 
     console.log('');
     console.log(info(`${displayName} is waiting for the OAuth callback.`));
     console.log('Paste the full callback URL after you finish the login in your browser.');
     rl.question('> ', (answer) => {
-      settled = true;
       rl.close();
-      resolve(answer.trim() || null);
+      finish(answer.trim() || null);
     });
+
+    timeout = setTimeout(() => {
+      if (!settled) {
+        console.log('');
+        console.log(fail('Timed out waiting for callback URL'));
+        rl.close();
+      }
+    }, timeoutMs);
   });
 }
 
 async function replayManualCallback(
   oauthConfig: ProviderOAuthConfig,
   authProcess: ChildProcess,
-  output: string,
-  verbose: boolean
+  authUrl: string,
+  verbose: boolean,
+  state: ProcessState,
+  timeoutMs: number
 ): Promise<boolean> {
-  if (!output.includes('http://') && !output.includes('https://')) {
+  if (!authUrl.includes('http://') && !authUrl.includes('https://')) {
     return false;
   }
 
-  const callbackUrl = await promptManualCallbackUrl(oauthConfig.displayName);
+  const callbackUrl = await promptManualCallbackUrl(oauthConfig.displayName, state, timeoutMs);
   if (!callbackUrl) {
     console.log(info('Cancelled'));
     killWithEscalation(authProcess);
     return true;
   }
 
-  let parsed: URL;
-  try {
-    parsed = new URL(callbackUrl);
-  } catch {
-    console.log(fail('Invalid callback URL format'));
-    killWithEscalation(authProcess);
-    return true;
-  }
-
-  if (!parsed.searchParams.get('code')) {
-    console.log(fail('Invalid callback URL: missing code parameter'));
+  const validationError = validateManualCallbackUrl(callbackUrl, authUrl);
+  if (validationError) {
+    console.log(fail(validationError));
     killWithEscalation(authProcess);
     return true;
   }
@@ -302,7 +400,14 @@ async function handleStdout(
 
       if (options.manualCallback && !state.manualCallbackPrompted) {
         state.manualCallbackPrompted = true;
-        await replayManualCallback(options.oauthConfig, authProcess, urlMatch[0], options.verbose);
+        await replayManualCallback(
+          options.oauthConfig,
+          authProcess,
+          urlMatch[0],
+          options.verbose,
+          state,
+          10 * 60 * 1000
+        );
       }
     }
   }
@@ -535,6 +640,7 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
       userCode: null,
       kiroMethodSelectionHandled: false,
       manualCallbackPrompted: false,
+      cancelManualCallbackPrompt: null,
     };
 
     // Register session for cancellation support
@@ -570,12 +676,26 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
       await handleStdout(data.toString(), state, options, authProcess, log);
     });
 
-    authProcess.stderr?.on('data', (data: Buffer) => {
+    authProcess.stderr?.on('data', async (data: Buffer) => {
       const output = data.toString();
       state.stderrData += output;
       log(`stderr: ${output.trim()}`);
       if (headless && !state.urlDisplayed) {
         displayUrlFromStderr(output, state, oauthConfig);
+      }
+      if (options.manualCallback && !state.manualCallbackPrompted) {
+        const urlMatch = output.match(/https?:\/\/[^\s]+/);
+        if (urlMatch) {
+          state.manualCallbackPrompted = true;
+          await replayManualCallback(
+            options.oauthConfig,
+            authProcess,
+            urlMatch[0],
+            options.verbose,
+            state,
+            10 * 60 * 1000
+          );
+        }
       }
     });
 
@@ -611,10 +731,15 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
 
     // Timeout handling
     // Device code flows need longer timeout to match CLIProxy binary's polling window (60 attempts × 5s = 300s)
-    const timeoutMs = headless || isDeviceCodeFlow ? 300000 : 120000;
+    const timeoutMs = options.manualCallback
+      ? 10 * 60 * 1000
+      : headless || isDeviceCodeFlow
+        ? 300000
+        : 120000;
     const timeout = setTimeout(() => {
       // H7: Clear stdin keepalive interval
       if (stdinKeepalive) clearInterval(stdinKeepalive);
+      state.cancelManualCallbackPrompt?.();
       // H5: Remove signal handlers before killing process
       process.removeListener('SIGINT', cleanup);
       process.removeListener('SIGTERM', cleanup);
@@ -634,6 +759,7 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
       clearTimeout(timeout);
       // H7: Clear stdin keepalive interval
       if (stdinKeepalive) clearInterval(stdinKeepalive);
+      state.cancelManualCallbackPrompt?.();
       // H5: Remove signal handlers to prevent memory leaks
       process.removeListener('SIGINT', cleanup);
       process.removeListener('SIGTERM', cleanup);
@@ -696,6 +822,7 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
       clearTimeout(timeout);
       // H7: Clear stdin keepalive interval
       if (stdinKeepalive) clearInterval(stdinKeepalive);
+      state.cancelManualCallbackPrompt?.();
       // H5: Remove signal handlers to prevent memory leaks
       process.removeListener('SIGINT', cleanup);
       process.removeListener('SIGTERM', cleanup);
