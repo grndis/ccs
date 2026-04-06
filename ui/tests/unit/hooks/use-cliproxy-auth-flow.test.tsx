@@ -221,6 +221,96 @@ describe('useCliproxyAuthFlow', () => {
     expect(toast.success).toHaveBeenCalledWith('codex authentication successful');
   });
 
+  it('promotes a state-first auth bootstrap into an immediate auth URL without waiting for the first interval', async () => {
+    let pollCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.includes('/start-url')) {
+          return Promise.resolve(
+            createJsonResponse({
+              success: true,
+              authUrl: null,
+              state: 'state-kiro-social',
+            })
+          );
+        }
+
+        if (url.includes('/status?state=state-kiro-social')) {
+          pollCount += 1;
+          return Promise.resolve(
+            createJsonResponse({
+              status: 'auth_url',
+              url: 'https://auth.example/kiro-social',
+            })
+          );
+        }
+
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      })
+    );
+
+    const { result } = renderHook(() => useCliproxyAuthFlow(), { wrapper });
+
+    await act(async () => {
+      await result.current.startAuth('kiro', { startEndpoint: 'start-url', kiroMethod: 'google' });
+    });
+
+    expect(result.current.authUrl).toBe('https://auth.example/kiro-social');
+    expect(result.current.oauthState).toBe('state-kiro-social');
+    expect(result.current.isAuthenticating).toBe(true);
+    expect(pollCount).toBe(1);
+  });
+
+  it('forwards Kiro IDC options to the backend start endpoint payload', async () => {
+    let requestBody: Record<string, unknown> | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.includes('/start')) {
+          requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return createJsonResponse({
+            success: true,
+            account: {
+              id: 'kiro-idc-account',
+              provider: 'kiro',
+            },
+          });
+        }
+
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      })
+    );
+
+    const { result } = renderHook(() => useCliproxyAuthFlow(), { wrapper });
+
+    await act(async () => {
+      await result.current.startAuth('kiro', {
+        startEndpoint: 'start',
+        flowType: 'authorization_code',
+        kiroMethod: 'idc',
+        kiroIDCStartUrl: 'https://d-123.awsapps.com/start',
+        kiroIDCRegion: 'ca-central-1',
+        kiroIDCFlow: 'authcode',
+      });
+    });
+
+    expect(requestBody).toEqual({
+      nickname: undefined,
+      kiroMethod: 'idc',
+      kiroIDCStartUrl: 'https://d-123.awsapps.com/start',
+      kiroIDCRegion: 'ca-central-1',
+      kiroIDCFlow: 'authcode',
+      riskAcknowledgement: undefined,
+    });
+  });
+
   it('treats callback responses without an account as failures', async () => {
     vi.stubGlobal(
       'fetch',

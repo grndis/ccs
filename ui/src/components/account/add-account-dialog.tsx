@@ -39,11 +39,15 @@ import {
 } from '@/components/account/antigravity-responsibility-constants';
 import {
   DEFAULT_KIRO_AUTH_METHOD,
+  DEFAULT_KIRO_IDC_FLOW,
+  getKiroEffectiveFlowType,
+  getKiroEffectiveStartEndpoint,
   getKiroAuthMethodOption,
+  isKiroSocialAuthMethod,
   isDeviceCodeProvider,
   KIRO_AUTH_METHOD_OPTIONS,
 } from '@/lib/provider-config';
-import type { KiroAuthMethod } from '@/lib/provider-config';
+import type { KiroAuthMethod, KiroIDCFlow } from '@/lib/provider-config';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -81,6 +85,9 @@ export function AddAccountDialog({
   const [powerUserModeEnabled, setPowerUserModeEnabled] = useState(false);
   const [powerUserModeLoading, setPowerUserModeLoading] = useState(false);
   const [kiroAuthMethod, setKiroAuthMethod] = useState<KiroAuthMethod>(DEFAULT_KIRO_AUTH_METHOD);
+  const [kiroIDCStartUrl, setKiroIDCStartUrl] = useState('');
+  const [kiroIDCRegion, setKiroIDCRegion] = useState('');
+  const [kiroIDCFlow, setKiroIDCFlow] = useState<KiroIDCFlow>(DEFAULT_KIRO_IDC_FLOW);
   const { t } = useTranslation();
   const wasAuthenticatingRef = useRef(false);
   const powerUserModeRequestIdRef = useRef(0);
@@ -97,9 +104,19 @@ export function AddAccountDialog({
   const isGeminiRiskAcknowledged = normalizeRiskPhrase(riskAcknowledgementText) === RISK_ACK_PHRASE;
   const defaultDeviceCode = isDeviceCodeProvider(provider);
   const kiroMethodOption = getKiroAuthMethodOption(kiroAuthMethod);
-  const isDeviceCode = isKiro ? kiroMethodOption.flowType === 'device_code' : defaultDeviceCode;
+  const isKiroIdc = isKiro && kiroAuthMethod === 'idc';
+  const isKiroSocial = isKiro && isKiroSocialAuthMethod(kiroAuthMethod);
+  const selectedKiroFlowType = isKiro
+    ? getKiroEffectiveFlowType(kiroAuthMethod, kiroIDCFlow)
+    : undefined;
+  const selectedKiroStartEndpoint = isKiro
+    ? getKiroEffectiveStartEndpoint(kiroAuthMethod)
+    : undefined;
+  const isDeviceCode = isKiro ? selectedKiroFlowType === 'device_code' : defaultDeviceCode;
   const isPending = authFlow.isAuthenticating || kiroImportMutation.isPending;
   const nicknameTrimmed = nickname.trim();
+  const kiroIDCStartUrlTrimmed = kiroIDCStartUrl.trim();
+  const kiroIDCRegionTrimmed = kiroIDCRegion.trim();
   const errorMessage = localError || authFlow.error;
 
   const fetchPowerUserModeState = useCallback(async (): Promise<boolean> => {
@@ -168,6 +185,9 @@ export function AddAccountDialog({
     setPowerUserModeEnabled(false);
     setPowerUserModeLoading(false);
     setKiroAuthMethod(DEFAULT_KIRO_AUTH_METHOD);
+    setKiroIDCStartUrl('');
+    setKiroIDCRegion('');
+    setKiroIDCFlow(DEFAULT_KIRO_IDC_FLOW);
     powerUserModeRequestIdRef.current += 1;
     powerUserModeLoadErrorShownRef.current = false;
     wasAuthenticatingRef.current = false;
@@ -282,12 +302,19 @@ export function AddAccountDialog({
       return;
     }
     setLocalError(null);
+    if (isKiroIdc && !kiroIDCStartUrlTrimmed) {
+      setLocalError('IDC Start URL is required for Kiro IAM Identity Center login.');
+      return;
+    }
     wasAuthenticatingRef.current = true;
     authFlow.startAuth(provider, {
       nickname: nicknameTrimmed || undefined,
       kiroMethod: isKiro ? kiroAuthMethod : undefined,
-      flowType: isKiro ? kiroMethodOption.flowType : undefined,
-      startEndpoint: isKiro ? kiroMethodOption.startEndpoint : undefined,
+      kiroIDCStartUrl: isKiroIdc ? kiroIDCStartUrlTrimmed : undefined,
+      kiroIDCRegion: isKiroIdc && kiroIDCRegionTrimmed ? kiroIDCRegionTrimmed : undefined,
+      kiroIDCFlow: isKiroIdc ? kiroIDCFlow : undefined,
+      flowType: isKiro ? selectedKiroFlowType : undefined,
+      startEndpoint: isKiro ? selectedKiroStartEndpoint : undefined,
       riskAcknowledgement: requiresAgyResponsibilityFlow
         ? {
             version: ANTIGRAVITY_ACK_VERSION,
@@ -399,6 +426,77 @@ export function AddAccountDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">{kiroMethodOption.description}</p>
+              {isKiroSocial && (
+                <p className="text-xs text-muted-foreground">
+                  If your browser does not return automatically after login, CCS can accept the
+                  final
+                  <span className="mx-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">
+                    kiro://...
+                  </span>
+                  callback URL in the next step.
+                </p>
+              )}
+            </div>
+          )}
+
+          {isKiroIdc && !showAuthUI && (
+            <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+              <div className="space-y-2">
+                <Label htmlFor="kiro-idc-start-url">IDC Start URL</Label>
+                <Input
+                  id="kiro-idc-start-url"
+                  value={kiroIDCStartUrl}
+                  onChange={(e) => {
+                    setKiroIDCStartUrl(e.target.value);
+                    setLocalError(null);
+                  }}
+                  placeholder="https://d-xxx.awsapps.com/start"
+                  disabled={isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Required for organization IAM Identity Center login.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="kiro-idc-region">IDC Region</Label>
+                <Input
+                  id="kiro-idc-region"
+                  value={kiroIDCRegion}
+                  onChange={(e) => {
+                    setKiroIDCRegion(e.target.value);
+                    setLocalError(null);
+                  }}
+                  placeholder="us-east-1"
+                  disabled={isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional. Leave blank to use the upstream default region.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="kiro-idc-flow">IDC Flow</Label>
+                <Select
+                  value={kiroIDCFlow}
+                  onValueChange={(value) => {
+                    setKiroIDCFlow(value as KiroIDCFlow);
+                    setLocalError(null);
+                  }}
+                >
+                  <SelectTrigger id="kiro-idc-flow">
+                    <SelectValue placeholder="Select IDC flow" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="authcode">Authorization Code</SelectItem>
+                    <SelectItem value="device">Device Code</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Auth Code opens a browser and may need the final callback URL pasted back. Device
+                  Code shows a verification code instead.
+                </p>
+              </div>
             </div>
           )}
 
@@ -438,7 +536,9 @@ export function AddAccountDialog({
                 <p className="text-xs text-muted-foreground mt-1">
                   {authFlow.isDeviceCodeFlow
                     ? t('addAccountDialog.deviceCodeHint')
-                    : t('addAccountDialog.browserHint')}
+                    : isKiroSocial
+                      ? 'Complete sign-in in your browser. If it does not return automatically, paste the final kiro:// callback URL below.'
+                      : t('addAccountDialog.browserHint')}
                 </p>
               </div>
 
@@ -486,13 +586,19 @@ export function AddAccountDialog({
                   {/* Callback paste field */}
                   <div className="space-y-2">
                     <Label htmlFor="callback-url" className="text-xs">
-                      {t('addAccountDialog.redirectPasteLabel')}
+                      {isKiroSocial
+                        ? 'Browser did not return? Paste the final kiro:// callback URL:'
+                        : t('addAccountDialog.redirectPasteLabel')}
                     </Label>
                     <Input
                       id="callback-url"
                       value={callbackUrl}
                       onChange={(e) => setCallbackUrl(e.target.value)}
-                      placeholder={t('addAccountDialog.callbackPlaceholder')}
+                      placeholder={
+                        isKiroSocial
+                          ? 'kiro://kiro.kiroAgent/authenticate-success?code=...&state=...'
+                          : t('addAccountDialog.callbackPlaceholder')
+                      }
                       className="font-mono text-xs"
                     />
                     <Button
@@ -516,7 +622,9 @@ export function AddAccountDialog({
 
               {!authFlow.authUrl && !authFlow.isDeviceCodeFlow && (
                 <p className="text-xs text-center text-muted-foreground">
-                  {t('addAccountDialog.preparingUrl')}
+                  {isKiroSocial
+                    ? 'Preparing the Kiro sign-in URL. If it does not open automatically, it will appear here shortly.'
+                    : t('addAccountDialog.preparingUrl')}
                 </p>
               )}
             </div>

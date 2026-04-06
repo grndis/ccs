@@ -234,8 +234,11 @@ export function getDeviceCodeProviderInstruction(provider: unknown): string {
 }
 
 /** Kiro auth methods exposed in CCS UI (aligned with CLIProxyAPIPlus support). */
-export const KIRO_AUTH_METHODS = ['aws', 'aws-authcode', 'google', 'github'] as const;
+export const KIRO_AUTH_METHODS = ['aws', 'aws-authcode', 'google', 'github', 'idc'] as const;
 export type KiroAuthMethod = (typeof KIRO_AUTH_METHODS)[number];
+export const KIRO_IDC_FLOWS = ['authcode', 'device'] as const;
+export type KiroIDCFlow = (typeof KIRO_IDC_FLOWS)[number];
+export const DEFAULT_KIRO_IDC_FLOW: KiroIDCFlow = 'authcode';
 
 export type KiroFlowType = 'authorization_code' | 'device_code';
 export type KiroStartEndpoint = 'start' | 'start-url';
@@ -280,6 +283,13 @@ export const KIRO_AUTH_METHOD_OPTIONS: readonly KiroAuthMethodOption[] = [
     flowType: 'authorization_code',
     startEndpoint: 'start-url',
   },
+  {
+    id: 'idc',
+    label: 'AWS Identity Center (IDC)',
+    description: 'Use your organization start URL with auth code or device flow.',
+    flowType: 'authorization_code',
+    startEndpoint: 'start',
+  },
 ];
 
 export function isKiroAuthMethod(value: string): value is KiroAuthMethod {
@@ -292,7 +302,40 @@ export function normalizeKiroAuthMethod(value?: string): KiroAuthMethod {
   return isKiroAuthMethod(normalized) ? normalized : DEFAULT_KIRO_AUTH_METHOD;
 }
 
+export function isKiroIDCFlow(value: string): value is KiroIDCFlow {
+  return KIRO_IDC_FLOWS.includes(value as KiroIDCFlow);
+}
+
+export function normalizeKiroIDCFlow(value?: string): KiroIDCFlow {
+  if (!value) return DEFAULT_KIRO_IDC_FLOW;
+  const normalized = value.trim().toLowerCase();
+  return isKiroIDCFlow(normalized) ? normalized : DEFAULT_KIRO_IDC_FLOW;
+}
+
 export function getKiroAuthMethodOption(method: KiroAuthMethod): KiroAuthMethodOption {
   const option = KIRO_AUTH_METHOD_OPTIONS.find((candidate) => candidate.id === method);
   return option || KIRO_AUTH_METHOD_OPTIONS[0];
+}
+
+export function getKiroEffectiveFlowType(
+  method: KiroAuthMethod,
+  idcFlow: KiroIDCFlow = DEFAULT_KIRO_IDC_FLOW
+): KiroFlowType {
+  if (method === 'aws') {
+    return 'device_code';
+  }
+
+  if (method === 'idc') {
+    return normalizeKiroIDCFlow(idcFlow) === 'device' ? 'device_code' : 'authorization_code';
+  }
+
+  return 'authorization_code';
+}
+
+export function getKiroEffectiveStartEndpoint(method: KiroAuthMethod): KiroStartEndpoint {
+  return method === 'google' || method === 'github' ? 'start-url' : 'start';
+}
+
+export function isKiroSocialAuthMethod(method: KiroAuthMethod): boolean {
+  return method === 'google' || method === 'github';
 }

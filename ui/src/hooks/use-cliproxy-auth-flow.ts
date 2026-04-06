@@ -26,6 +26,9 @@ interface AuthFlowState {
 interface StartAuthOptions {
   nickname?: string;
   kiroMethod?: string;
+  kiroIDCStartUrl?: string;
+  kiroIDCRegion?: string;
+  kiroIDCFlow?: 'authcode' | 'device';
   flowType?: 'authorization_code' | 'device_code';
   startEndpoint?: 'start' | 'start-url';
   riskAcknowledgement?: {
@@ -70,6 +73,7 @@ const INITIAL_STATE: AuthFlowState = {
 
 export function useCliproxyAuthFlow() {
   const [state, setState] = useState<AuthFlowState>(INITIAL_STATE);
+  const stateRef = useRef<AuthFlowState>(INITIAL_STATE);
 
   const attemptIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -101,6 +105,10 @@ export function useCliproxyAuthFlow() {
       openedAuthUrlRef.current = false;
     };
   }, [stopPolling]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Poll OAuth status
   const pollStatus = useCallback(
@@ -253,6 +261,9 @@ export function useCliproxyAuthFlow() {
       const payload = {
         nickname: options?.nickname,
         kiroMethod: options?.kiroMethod,
+        kiroIDCStartUrl: options?.kiroIDCStartUrl,
+        kiroIDCRegion: options?.kiroIDCRegion,
+        kiroIDCFlow: options?.kiroIDCFlow,
         riskAcknowledgement: options?.riskAcknowledgement,
       };
 
@@ -368,6 +379,16 @@ export function useCliproxyAuthFlow() {
           // Start polling for completion
           if (oauthState) {
             pollStartRef.current = Date.now();
+            if (!authUrl) {
+              await pollStatus(provider, oauthState, attemptId);
+              if (!isActiveAttempt(attemptId)) {
+                return;
+              }
+              const currentState = stateRef.current;
+              if (!currentState.isAuthenticating || currentState.provider !== provider) {
+                return;
+              }
+            }
             pollIntervalRef.current = setInterval(() => {
               void pollStatus(provider, oauthState, attemptId);
             }, POLL_INTERVAL);
