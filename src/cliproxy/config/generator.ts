@@ -38,8 +38,9 @@ export const CCS_CONTROL_PANEL_SECRET = 'ccs';
  * v14: Added Gemini 3.1 Flash Antigravity aliases for upcoming rollout compatibility
  * v15: Prune stale generated Antigravity Gemini preview aliases during regeneration
  * v16: Narrow stale Gemini alias cleanup to broad multi-version guessed ranges
+ * v17: Persist routing.strategy from CCS unified config
  */
-export const CLIPROXY_CONFIG_VERSION = 16;
+export const CLIPROXY_CONFIG_VERSION = 17;
 
 interface OAuthModelAliasEntry {
   name: string;
@@ -113,6 +114,11 @@ function getLoggingSettings(): { loggingToFile: boolean; requestLog: boolean } {
     loggingToFile: config.cliproxy.logging?.enabled ?? false,
     requestLog: config.cliproxy.logging?.request_log ?? false,
   };
+}
+
+function getRoutingStrategy(): 'round-robin' | 'fill-first' {
+  const config = loadOrCreateUnifiedConfig();
+  return config.cliproxy?.routing?.strategy === 'fill-first' ? 'fill-first' : 'round-robin';
 }
 
 function sanitizeYamlScalar(rawValue: string): string {
@@ -534,6 +540,7 @@ function generateUnifiedConfigContent(
 
   // Get logging settings from user config (disabled by default)
   const { loggingToFile, requestLog } = getLoggingSettings();
+  const routingStrategy = getRoutingStrategy();
 
   // Get effective auth tokens (respects user customization)
   const effectiveApiKey = getEffectiveApiKey();
@@ -605,6 +612,10 @@ max-retry-interval: 0
 quota-exceeded:
   switch-project: true
   switch-preview-model: true
+
+# Credential selection strategy when multiple matching accounts are available
+routing:
+  strategy: ${routingStrategy}
 
 # =============================================================================
 # Authentication

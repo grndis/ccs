@@ -157,6 +157,12 @@ function getSuggestionsForCommand(tokensBeforeCurrent: string[]): CompletionSugg
           '--help',
           '-h',
         ]);
+      if (subcommand === 'routing') {
+        if (lastToken === 'set') {
+          return completeSubcommands(['round-robin', 'fill-first']);
+        }
+        return completeSubcommands(['set', 'explain']);
+      }
       if (['remove', 'edit'].includes(subcommand)) {
         return completeSubcommands(getProfileNames('cliproxyVariants'), ['--yes', '-y']);
       }

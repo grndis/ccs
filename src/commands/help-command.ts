@@ -211,7 +211,10 @@ export async function handleHelpCommand(writeLine: HelpWriter = console.log): Pr
       { name: 'ccs help completion', summary: getTopicSummary('completion') },
       { name: 'ccs help targets', summary: getTopicSummary('targets') },
       { name: 'ccs api --help', summary: 'Deep help for API profile lifecycle commands' },
-      { name: 'ccs cliproxy --help', summary: 'Deep help for variants, quota, and lifecycle' },
+      {
+        name: 'ccs cliproxy --help',
+        summary: 'Deep help for variants, routing, quota, and lifecycle',
+      },
       { name: 'ccs docker --help', summary: 'Deep help for Docker deployment commands' },
       { name: 'ccs cursor --help', summary: 'Deep help for Cursor runtime/admin commands' },
       { name: 'ccs copilot --help', summary: 'Deep help for GitHub Copilot commands' },

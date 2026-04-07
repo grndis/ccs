@@ -1,6 +1,6 @@
 # CCS Product Development Requirements (PDR)
 
-Last Updated: 2026-04-02
+Last Updated: 2026-04-07
 
 ## Product Overview
 
@@ -39,6 +39,7 @@ CCS provides:
 7. **Automatic Image Analysis**: First-class local ImageAnalysis tool with direct provider routing for third-party profiles
 8. **Usage Analytics**: Token tracking, cost analysis, model breakdown
 9. **Official Claude Channels**: Runtime auto-enable plus dashboard token/config flow for Telegram, Discord, and macOS-only iMessage
+10. **Routing Strategy Guidance**: First-class `round-robin` vs `fill-first` controls in CLI and dashboard, with explicit opt-in changes and no account-based guessing
 
 ---
 
@@ -118,6 +119,10 @@ CCS provides:
 ### FR-009: Quota Management (v7.14)
 - Pause/resume individual accounts via `ccs cliproxy pause/resume <account>`
 - Check quota status via `ccs cliproxy status [account]`
+- Inspect the current proxy-wide routing strategy via `ccs cliproxy routing`
+- Explicitly switch `round-robin` vs `fill-first` from CLI or dashboard
+- Keep `round-robin` as the default until the user explicitly changes it
+- Never infer routing strategy from account count, tier mix, or paused/default account state
 - Auto-failover when account exhausted
 - Tier detection: free/paid/unknown
 - Pre-flight quota checks before session start

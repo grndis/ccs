@@ -38,6 +38,7 @@ export function ProviderEditor({
   isRemoteMode,
   port,
   defaultTarget,
+  topNotice,
   onAddAccount,
   onSetDefault,
   onRemoveAccount,
@@ -227,6 +228,7 @@ export function ProviderEditor({
         onRefetch={refetch}
         onSave={() => saveMutation.mutate()}
       />
+      {topNotice ? <div className="border-b bg-muted/10 px-4 py-3">{topNotice}</div> : null}
 
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">

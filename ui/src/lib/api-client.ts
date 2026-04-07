@@ -413,6 +413,20 @@ export interface AuthStatus {
   defaultAccount?: string;
 }
 
+export type RoutingStrategy = 'round-robin' | 'fill-first';
+
+export interface CliproxyRoutingState {
+  strategy: RoutingStrategy;
+  source: 'live' | 'config';
+  target: 'local' | 'remote';
+  reachable: boolean;
+  message?: string;
+}
+
+export interface CliproxyRoutingApplyResult extends CliproxyRoutingState {
+  applied: 'live' | 'live-and-config' | 'config-only';
+}
+
 /** Auth file info for Config tab */
 export interface AuthFile {
   name: string;
@@ -990,6 +1004,12 @@ export const api = {
       request(`/cliproxy/models/${provider}`, {
         method: 'PUT',
         body: JSON.stringify({ model }),
+      }),
+    getRoutingStrategy: () => request<CliproxyRoutingState>('/cliproxy/routing/strategy'),
+    updateRoutingStrategy: (strategy: RoutingStrategy) =>
+      request<CliproxyRoutingApplyResult>('/cliproxy/routing/strategy', {
+        method: 'PUT',
+        body: JSON.stringify({ value: strategy }),
       }),
     aiProviders: {
       list: () => request<ListAiProvidersResult>('/cliproxy/ai-providers'),

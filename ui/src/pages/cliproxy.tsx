@@ -443,11 +443,7 @@ export function CliproxyPage() {
       </div>
 
       {/* Right Panel */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background">
-        {showAccountSafetyWarning && (
-          <AccountSafetyWarningCard showProxySettingsLink className="mx-4 mt-4" />
-        )}
-
+      <div className="flex-1 flex min-w-0 flex-col overflow-hidden bg-background">
         {selectedVariantData && parentAuthForVariant ? (
           <>
             <ProviderEditor
@@ -463,6 +459,11 @@ export function CliproxyPage() {
               defaultTarget={selectedVariantData.target}
               isRemoteMode={isRemoteMode}
               port={selectedVariantData.port}
+              topNotice={
+                showAccountSafetyWarning ? (
+                  <AccountSafetyWarningCard compact showProxySettingsLink />
+                ) : undefined
+              }
               onAddAccount={() =>
                 setAddAccountProvider({
                   provider: selectedVariantData.provider,
@@ -507,6 +508,11 @@ export function CliproxyPage() {
               authStatus={selectedStatus}
               catalog={MODEL_CATALOGS[selectedStatus.provider]}
               isRemoteMode={isRemoteMode}
+              topNotice={
+                showAccountSafetyWarning ? (
+                  <AccountSafetyWarningCard compact showProxySettingsLink />
+                ) : undefined
+              }
               onAddAccount={() =>
                 setAddAccountProvider({
                   provider: selectedStatus.provider,

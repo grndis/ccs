@@ -82,7 +82,9 @@ config. Deep dive:
 
 ![CLIProxy API](assets/screenshots/cliproxyapi.webp)
 
-Manage OAuth-backed providers, quota visibility, and routing from one place.
+Manage OAuth-backed providers, quota visibility, and proxy-wide routing from one place. CCS now
+surfaces round-robin vs fill-first natively in both CLI and dashboard flows instead of hiding that
+choice inside raw upstream controls.
 Deep dive:
 [CLIProxy API](https://docs.ccs.kaitran.ca/features/proxy/cliproxy-api).
 

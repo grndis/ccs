@@ -5,7 +5,13 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type CreateVariant, type UpdateVariant, type CreatePreset } from '@/lib/api-client';
+import {
+  api,
+  type CreateVariant,
+  type UpdateVariant,
+  type CreatePreset,
+  type RoutingStrategy,
+} from '@/lib/api-client';
 import { toast } from 'sonner';
 
 export function useCliproxy() {
@@ -19,6 +25,28 @@ export function useCliproxyAuth() {
   return useQuery({
     queryKey: ['cliproxy-auth'],
     queryFn: () => api.cliproxy.getAuthStatus(),
+  });
+}
+
+export function useCliproxyRoutingStrategy() {
+  return useQuery({
+    queryKey: ['cliproxy-routing'],
+    queryFn: () => api.cliproxy.getRoutingStrategy(),
+  });
+}
+
+export function useUpdateCliproxyRoutingStrategy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (strategy: RoutingStrategy) => api.cliproxy.updateRoutingStrategy(strategy),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cliproxy-routing'] });
+      toast.success(result.message || `Routing strategy set to ${result.strategy}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
 }
 

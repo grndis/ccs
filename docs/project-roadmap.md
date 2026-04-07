@@ -1,6 +1,6 @@
 # CCS Project Roadmap
 
-Last Updated: 2026-04-05
+Last Updated: 2026-04-07
 
 Forward-looking roadmap documenting current priorities, GitHub issues, and future feature plans.
 
@@ -41,6 +41,7 @@ All major modularization work is complete. The codebase evolved from monolithic 
 
 ### Recent Fixes
 
+- **2026-04-07**: CLIProxy routing strategy is now a first-class CCS surface. Users can inspect and explicitly change `round-robin` vs `fill-first` from `ccs cliproxy routing` and from a native `/cliproxy` dashboard card. Local mode now persists the chosen startup default into CCS-managed CLIProxy config generation, while untouched installs remain on `round-robin`. CCS deliberately does not infer strategy from account composition.
 - **2026-04-06**: The dashboard login surface now distinguishes a real sign-in from a host-setup requirement. Remote/IP visitors no longer see a misleading blank credential form when dashboard auth is disabled or incomplete; they now get explicit guidance that CCS has no default credentials, should be enabled on the host with `ccs config auth setup`, or should be reopened via localhost when used on the same machine. The password field now includes a show/hide toggle, and the page exposes an explicit light/dark theme switch before sign-in.
 - **2026-04-04**: The GitHub README was reduced from a wall-of-text reference dump into a shorter conversion surface that keeps the hero, proof screenshots, and fast-start commands while delegating deeper installation, provider, feature, and CLI-reference content to `docs.ccs.kaitran.ca`. The docs site now includes a dedicated `Product Tour` page for the screenshot-led walkthrough.
 - **2026-04-05**: **#912 #913 #914** Kiro auth is now aligned with the current CLIProxyAPIPlus contract. CCS auto-selects the Builder ID path for the default `ccs kiro --auth` flow instead of stalling on the upstream Builder ID vs IDC chooser, callback-based Kiro auth methods can use `--paste-callback` by replaying the pasted redirect URL back into the local callback server, and the CLI now supports IDC auth via `--kiro-auth-method idc` plus `--kiro-idc-start-url`, `--kiro-idc-region`, and `--kiro-idc-flow`.

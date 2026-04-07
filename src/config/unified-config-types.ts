@@ -10,7 +10,7 @@
  */
 
 import type { TargetType } from '../targets/target-adapter';
-import type { CLIProxyProvider } from '../cliproxy/types';
+import type { CLIProxyProvider, CliproxyRoutingStrategy } from '../cliproxy/types';
 import { CLIPROXY_PROVIDER_IDS } from '../cliproxy/provider-capabilities';
 
 /**
@@ -201,6 +201,11 @@ export interface TokenRefreshSettings {
   verbose?: boolean;
 }
 
+export interface CLIProxyRoutingConfig {
+  /** Credential selection strategy when multiple accounts match */
+  strategy?: CliproxyRoutingStrategy;
+}
+
 /**
  * CLIProxy configuration section.
  */
@@ -225,6 +230,8 @@ export interface CLIProxyConfig {
   token_refresh?: TokenRefreshSettings;
   /** Auto-sync API profiles to local CLIProxy config on settings change (default: true) */
   auto_sync?: boolean;
+  /** Routing strategy for multi-account CLIProxy selection */
+  routing?: CLIProxyRoutingConfig;
 }
 
 /**
@@ -901,6 +908,9 @@ export function createEmptyUnifiedConfig(): UnifiedConfig {
       },
       safety: { ...DEFAULT_CLIPROXY_SAFETY_CONFIG },
       auto_sync: true,
+      routing: {
+        strategy: 'round-robin',
+      },
     },
     preferences: {
       theme: 'system',

@@ -373,6 +373,13 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
           : undefined, // Invalid values become undefined (defaults to 'plus' at runtime)
       // Auto-sync - default to true
       auto_sync: partial.cliproxy?.auto_sync ?? defaults.cliproxy.auto_sync ?? true,
+      routing: {
+        strategy:
+          partial.cliproxy?.routing?.strategy === 'fill-first' ||
+          partial.cliproxy?.routing?.strategy === 'round-robin'
+            ? partial.cliproxy.routing.strategy
+            : defaults.cliproxy.routing?.strategy,
+      },
     },
     preferences: {
       ...defaults.preferences,

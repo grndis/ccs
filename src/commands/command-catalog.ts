@@ -237,6 +237,7 @@ export const CLIPROXY_SUBCOMMANDS = [
   'edit',
   'list',
   'remove',
+  'routing',
   'catalog',
   'sync',
   'quota',

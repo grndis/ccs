@@ -57,6 +57,9 @@ export async function showHelp(): Promise<void> {
         ['resume <account>', 'Resume paused account'],
         ['quota', 'Show quota status for all providers (Codex/Claude include 5h + weekly reset)'],
         ['quota --provider <name>', `Filter by provider (${QUOTA_PROVIDER_HELP_TEXT})`],
+        ['routing', 'Show current routing strategy and manual guidance'],
+        ['routing explain', 'Explain round-robin vs fill-first'],
+        ['routing set <mode>', 'Explicitly set round-robin or fill-first'],
       ],
     ],
     [

@@ -2,6 +2,7 @@
  * Type definitions for ProviderEditor components
  */
 
+import type { ReactNode } from 'react';
 import type { AuthStatus, OAuthAccount, CliTarget } from '@/lib/api-client';
 import type { ProviderCatalog } from '../provider-model-selector';
 
@@ -29,6 +30,8 @@ export interface ProviderEditorProps {
   port?: number;
   /** Default execution target for this profile/variant */
   defaultTarget?: CliTarget;
+  /** Optional contextual notice shown directly under the editor header */
+  topNotice?: ReactNode;
   onAddAccount: () => void;
   onSetDefault: (accountId: string) => void;
   onRemoveAccount: (accountId: string) => void;

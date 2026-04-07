@@ -142,6 +142,11 @@ export type CLIProxyProvider =
 export type CLIProxyBackend = 'original' | 'plus';
 
 /**
+ * Credential routing strategy for matching CLIProxy accounts.
+ */
+export type CliproxyRoutingStrategy = 'round-robin' | 'fill-first';
+
+/**
  * Providers that require CLIProxyAPIPlus backend
  */
 export const PLUS_ONLY_PROVIDERS: CLIProxyProvider[] = ['kiro', 'ghcp'];
@@ -154,6 +159,9 @@ export interface CLIProxyConfig {
   'api-keys': string[];
   'auth-dir': string;
   debug: boolean;
+  routing?: {
+    strategy?: CliproxyRoutingStrategy;
+  };
   'gemini-api-key'?: Array<{
     'api-key': string;
     'base-url'?: string;
