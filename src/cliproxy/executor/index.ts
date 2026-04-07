@@ -883,7 +883,6 @@ export async function execClaudeWithCLIProxy(
 
   if (provider === 'codex' && !cfg.isComposite && !skipLocalAuth) {
     await reconcileCodexModelForActivePlan({
-      settingsPath: cfg.customSettingsPath || getProviderSettingsPath(provider),
       currentModel: getCurrentModel(provider, cfg.customSettingsPath),
       verbose,
     });
