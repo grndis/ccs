@@ -8,7 +8,7 @@ Native Claude accounts keep Anthropic's own vision flow.
 
 Third-party profiles now use a CCS-managed local MCP tool named `ImageAnalysis` when the runtime is available. CCS also appends a short steering hint so Claude prefers that tool over `Read` for local image and PDF files.
 
-If the managed runtime, auth, or proxy path is unavailable, CCS falls back to native `Read` instead of failing the whole launch. The old `Read` hook remains only as a compatibility fallback when it can be installed safely.
+Healthy Claude-target launches suppress the legacy CCS `Read` hook so MCP stays authoritative. If the managed runtime cannot be provisioned, CCS keeps the old `Read` hook available only as a compatibility fallback when that path is still viable. If runtime/auth/proxy readiness is degraded beyond that, CCS falls back to native `Read` instead of failing the whole launch.
 
 ## Routing Model
 
@@ -29,7 +29,8 @@ Important:
 |--------------|--------------|
 | Claude `default` / `account` | Native Claude vision / native `Read` |
 | Third-party settings / CLIProxy / Copilot | CCS local `ImageAnalysis` MCP tool when ready |
-| Third-party when runtime unavailable | Native `Read` fallback |
+| Third-party when MCP provisioning fails but provider-backed analysis is still viable | Legacy CCS `Read` hook fallback |
+| Third-party when runtime/auth/proxy is unavailable | Native `Read` fallback |
 
 ## Configuration
 
@@ -79,11 +80,20 @@ Key runtime env vars:
 | Variable | Purpose |
 |----------|---------|
 | `CCS_IMAGE_ANALYSIS_SKIP` | Disable image analysis for the current launch |
+| `CCS_IMAGE_ANALYSIS_SKIP_HOOK` | Suppress only the legacy CCS `Read` hook while keeping MCP ImageAnalysis available |
 | `CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL` | Explicit CCS runtime base URL |
 | `CCS_IMAGE_ANALYSIS_RUNTIME_PATH` | Provider route such as `/api/provider/agy` |
 | `CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY` | Explicit CCS runtime auth key |
 | `CCS_IMAGE_ANALYSIS_MODEL` | Force a single image-analysis model |
 | `CCS_DEBUG` | Verbose runtime logging |
+
+## Self-Heal
+
+CCS now auto-heals stale managed image-analysis state in three places:
+
+- Healthy Claude launches remove stale CCS-managed image `Read` hooks from the active profile settings before launch.
+- `Settings -> Image` save/provisioning repairs managed MCP runtime files, syncs managed MCP entries into isolated Claude config dirs, and cleans stale CCS-managed image hooks from `~/.ccs/*.settings.json`.
+- `ccs doctor --fix` repairs invalid image-analysis config, removes stale CCS-managed image hooks, and resyncs managed `ccs-image-analysis` MCP entries into isolated configs.
 
 ## Troubleshooting
 
@@ -91,6 +101,7 @@ Key runtime env vars:
 
 - Confirm `ccs config image-analysis` shows `enabled: true`
 - Check the active profile resolves to a configured backend
+- Run `ccs doctor --fix` to repair stale managed hooks or missing managed MCP sync
 - Run with `CCS_DEBUG=1` to see runtime preparation details
 
 ### ImageAnalysis is not exposed

@@ -1,6 +1,6 @@
 # CCS Product Development Requirements (PDR)
 
-Last Updated: 2026-04-07
+Last Updated: 2026-04-08
 
 ## Product Overview
 
@@ -105,8 +105,10 @@ CCS provides:
 - Expose a CCS-managed local `ImageAnalysis` MCP tool for third-party profiles that need provider-backed vision
 - Resolve the provider route before launch and send requests directly to `/api/provider/<backend>/v1/messages`
 - Use editable prompt templates for `default`, `screenshot`, and `document` analysis modes
-- Keep the old `Read` hook as compatibility fallback only, not the primary user experience
-- Fall back to native `Read` without failing the whole launch when the managed runtime is unavailable
+- Suppress the old CCS-managed `Read` hook during healthy MCP launches so it cannot compete with the primary path
+- Keep the old `Read` hook as compatibility fallback only when MCP provisioning fails but provider-backed analysis is still viable
+- Auto-heal stale CCS-managed image hooks and missing isolated MCP sync through launch-time cleanup, dashboard provisioning, and `ccs doctor --fix`
+- Fall back to native `Read` without failing the whole launch when managed runtime, auth, or proxy readiness is unavailable
 
 ### FR-008: Remote CLIProxy Support
 - Connect to remote CLIProxyAPI instances
