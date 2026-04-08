@@ -8,6 +8,15 @@ import {
   type ReadLogEntriesOptions,
 } from './log-types';
 
+type CurrentLogCache = {
+  entries: LogEntry[];
+  mtimeNs: bigint;
+  path: string;
+  size: bigint;
+} | null;
+
+let currentLogCache: CurrentLogCache = null;
+
 function parseLogLine(line: string): LogEntry | null {
   try {
     return JSON.parse(line) as LogEntry;
@@ -19,16 +28,62 @@ function parseLogLine(line: string): LogEntry | null {
 function readCurrentFileEntries(): LogEntry[] {
   const currentLogPath = getCurrentLogPath();
   if (!fs.existsSync(currentLogPath)) {
+    currentLogCache = null;
     return [];
   }
 
-  return fs
+  const stats = fs.statSync(currentLogPath, { bigint: true });
+  if (
+    currentLogCache &&
+    currentLogCache.path === currentLogPath &&
+    currentLogCache.mtimeNs === stats.mtimeNs &&
+    currentLogCache.size === stats.size
+  ) {
+    return [...currentLogCache.entries];
+  }
+
+  const entries = fs
     .readFileSync(currentLogPath, 'utf8')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map(parseLogLine)
     .filter((entry): entry is LogEntry => entry !== null);
+
+  currentLogCache = {
+    entries,
+    mtimeNs: stats.mtimeNs,
+    path: currentLogPath,
+    size: stats.size,
+  };
+
+  return [...entries];
+}
+
+function matchesLogQuery(entry: LogEntry, options: ReadLogEntriesOptions): boolean {
+  if (options.source && entry.source !== options.source) {
+    return false;
+  }
+
+  if (options.level && entry.level !== options.level) {
+    return false;
+  }
+
+  if (!options.search) {
+    return true;
+  }
+
+  const search = options.search.toLowerCase();
+  return (
+    entry.message.toLowerCase().includes(search) ||
+    entry.event.toLowerCase().includes(search) ||
+    entry.source.toLowerCase().includes(search) ||
+    String(entry.processId).toLowerCase().includes(search) ||
+    entry.runId.toLowerCase().includes(search) ||
+    JSON.stringify(entry.context || {})
+      .toLowerCase()
+      .includes(search)
+  );
 }
 
 function dedupeEntries(entries: LogEntry[]): LogEntry[] {
@@ -40,28 +95,12 @@ function dedupeEntries(entries: LogEntry[]): LogEntry[] {
 }
 
 export function readLogEntries(options: ReadLogEntriesOptions = {}): LogEntry[] {
+  const limit = options.limit ?? 200;
   const entries = dedupeEntries([...readCurrentFileEntries(), ...getRecentLogEntries()])
-    .filter((entry) => (options.source ? entry.source === options.source : true))
-    .filter((entry) => (options.level ? entry.level === options.level : true))
-    .filter((entry) => {
-      if (!options.search) {
-        return true;
-      }
-      const search = options.search.toLowerCase();
-      return (
-        entry.message.toLowerCase().includes(search) ||
-        entry.event.toLowerCase().includes(search) ||
-        entry.source.toLowerCase().includes(search) ||
-        String(entry.processId).toLowerCase().includes(search) ||
-        entry.runId.toLowerCase().includes(search) ||
-        JSON.stringify(entry.context || {})
-          .toLowerCase()
-          .includes(search)
-      );
-    })
+    .filter((entry) => matchesLogQuery(entry, options))
     .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
-  return entries.slice(0, options.limit ?? 200);
+  return entries.slice(0, limit);
 }
 
 export function readLogSourceSummaries(): LogSourceSummary[] {

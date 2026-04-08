@@ -1,7 +1,7 @@
 /**
  * Cleanup Command Handler
  *
- * Removes old CLIProxy logs to free up disk space.
+ * Removes old CCS and CLIProxy logs to free up disk space.
  * Supports both main logs and error request logs with age-based filtering.
  * Logs can accumulate to several GB without user awareness.
  */
@@ -32,23 +32,20 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
 }
 
-/** Calculate total size of a directory */
+/** Calculate total size of regular top-level files in a directory */
 function getDirSize(dirPath: string): number {
   if (!fs.existsSync(dirPath)) return 0;
 
   let totalSize = 0;
-  const files = fs.readdirSync(dirPath);
+  const entries = fs.readdirSync(dirPath);
 
-  for (const file of files) {
-    const filePath = path.join(dirPath, file);
+  for (const entry of entries) {
+    const filePath = path.join(dirPath, entry);
     try {
-      const stats = fs.lstatSync(filePath); // Use lstat to detect symlinks
+      const stats = fs.lstatSync(filePath);
       if (stats.isFile() && !stats.isSymbolicLink()) {
         totalSize += stats.size;
-      } else if (stats.isDirectory() && !stats.isSymbolicLink()) {
-        totalSize += getDirSize(filePath);
       }
-      // Skip symlinks for safety
     } catch {
       // File may have been deleted between readdir and stat - skip
     }
