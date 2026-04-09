@@ -133,6 +133,9 @@ describe('AccountCard grouped quota tooltip', () => {
     await userEvent.hover(screen.getByText('Business'));
     expect((await screen.findAllByText('Plan: team')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('5h usage limit').length).toBeGreaterThan(0);
+    const tooltipContent = document.querySelector('[data-slot="tooltip-content"]');
+    expect(tooltipContent?.className).toContain('bg-popover');
+    expect(tooltipContent?.className).toContain('text-popover-foreground');
 
     await userEvent.hover(screen.getByText('Personal'));
     expect((await screen.findAllByText('Plan: plus')).length).toBeGreaterThan(0);
