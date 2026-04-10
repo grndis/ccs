@@ -265,11 +265,16 @@ async function resolveModelConfiguration(
 }
 
 async function resolveDefaultTarget(
+  preset: ProviderPreset | null,
   providedTarget: TargetType | undefined,
   yes: boolean | undefined
 ): Promise<TargetType> {
-  if (providedTarget) {
-    return providedTarget;
+  const resolvedTarget = resolvePresetDefaultTarget(preset, providedTarget);
+  if (resolvedTarget) {
+    if (preset?.defaultTarget && !providedTarget) {
+      console.log(info(`Using preset default target: ${preset.defaultTarget}`));
+    }
+    return resolvedTarget;
   }
   if (yes) {
     return 'claude';
@@ -280,6 +285,19 @@ async function resolveDefaultTarget(
     { default: false }
   );
   return useDroidByDefault ? 'droid' : 'claude';
+}
+
+export function resolvePresetDefaultTarget(
+  preset: Pick<ProviderPreset, 'defaultTarget'> | null,
+  providedTarget: TargetType | undefined
+): TargetType | null {
+  if (providedTarget) {
+    return providedTarget;
+  }
+  if (preset?.defaultTarget) {
+    return preset.defaultTarget;
+  }
+  return null;
 }
 
 async function resolveClaudeLongContextPreference(
@@ -349,7 +367,7 @@ export async function handleApiCreateCommand(args: string[]): Promise<void> {
       parsedArgs.name,
       parsedArgs.yes
     );
-    const target = await resolveDefaultTarget(parsedArgs.target, parsedArgs.yes);
+    const target = await resolveDefaultTarget(null, parsedArgs.target, parsedArgs.yes);
 
     if (name && apiProfileExists(name) && !parsedArgs.force) {
       console.log(fail(`API '${name}' already exists`));
@@ -464,7 +482,7 @@ export async function handleApiCreateCommand(args: string[]): Promise<void> {
   const finalModels = hasClaudeMappings
     ? applyClaudeExtendedContextPreference(models, shouldEnableClaudeLongContext)
     : models;
-  const target = await resolveDefaultTarget(parsedArgs.target, parsedArgs.yes);
+  const target = await resolveDefaultTarget(preset, parsedArgs.target, parsedArgs.yes);
 
   if (parsedArgs.extendedContext !== undefined && !hasClaudeMappings) {
     console.log('');

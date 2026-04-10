@@ -85,6 +85,52 @@ describe('profile-writer Anthropic direct', () => {
     expect(settings.env.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it('persists droid as the saved target for generic API profiles', () => {
+    const result = createApiProfile(
+      'hf-target',
+      'https://router.huggingface.co/v1',
+      'hf_testkey123',
+      {
+        default: 'openai/gpt-oss-120b:fastest',
+        opus: 'openai/gpt-oss-120b:fastest',
+        sonnet: 'openai/gpt-oss-120b:fastest',
+        haiku: 'openai/gpt-oss-120b:fastest',
+      },
+      'droid'
+    );
+
+    expect(result.success).toBe(true);
+
+    const configPath = path.join(tempHome, '.ccs', 'config.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+    expect(config.profiles['hf-target']).toBe('~/.ccs/hf-target.settings.json');
+    expect(config.profile_targets['hf-target']).toBe('droid');
+  });
+
+  it('does not persist a non-default target entry when the target is claude', () => {
+    const result = createApiProfile(
+      'hf-target-claude',
+      'https://router.huggingface.co/v1',
+      'hf_testkey123',
+      {
+        default: 'openai/gpt-oss-120b:fastest',
+        opus: 'openai/gpt-oss-120b:fastest',
+        sonnet: 'openai/gpt-oss-120b:fastest',
+        haiku: 'openai/gpt-oss-120b:fastest',
+      },
+      'claude'
+    );
+
+    expect(result.success).toBe(true);
+
+    const configPath = path.join(tempHome, '.ccs', 'config.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+    expect(config.profiles['hf-target-claude']).toBe('~/.ccs/hf-target-claude.settings.json');
+    expect(config.profile_targets?.['hf-target-claude']).toBeUndefined();
+  });
+
   it('preserves OpenRouter ANTHROPIC_API_KEY blank behavior', () => {
     const result = createApiProfile(
       'openrouter-test',

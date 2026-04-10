@@ -47,6 +47,7 @@ describe('ProfileCreateDialog', () => {
     expect(screen.getByText('More Presets')).toBeInTheDocument();
     expect(screen.getByText('Local Runtimes')).toBeInTheDocument();
     expect(screen.getByText('Alibaba Coding Plan')).toBeVisible();
+    expect(screen.getByText('Hugging Face')).toBeVisible();
     expect(document.body.querySelectorAll('.overflow-x-auto')).toHaveLength(2);
 
     const customButton = screen.getByRole('button', { name: /Custom Endpoint/i });
@@ -73,5 +74,28 @@ describe('ProfileCreateDialog', () => {
     expect(screen.getByDisplayValue('ollama')).toBeInTheDocument();
     expect(screen.getByDisplayValue('http://localhost:11434')).toBeInTheDocument();
     expect(screen.getByText('Local Runtimes')).toBeInTheDocument();
+  });
+
+  it('steers the Hugging Face preset to the droid target by default', async () => {
+    render(
+      <ProfileCreateDialog
+        open
+        onOpenChange={vi.fn()}
+        onSuccess={vi.fn()}
+        initialMode="openrouter"
+      />
+    );
+
+    const huggingFaceButton = screen.getByText('Hugging Face').closest('button');
+    expect(huggingFaceButton).not.toBeNull();
+    if (!huggingFaceButton) {
+      throw new Error('Hugging Face preset button not found');
+    }
+
+    await userEvent.click(huggingFaceButton);
+
+    expect(screen.getByDisplayValue('hf')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('https://router.huggingface.co/v1')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveTextContent('Factory Droid');
   });
 });
