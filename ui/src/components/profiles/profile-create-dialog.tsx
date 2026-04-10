@@ -157,6 +157,7 @@ export function ProfileCreateDialog({
         opusModel: preset.defaultModel,
         sonnetModel: preset.defaultModel,
         haikuModel: preset.defaultModel,
+        target: preset.defaultTarget ?? 'claude',
       });
     },
     [reset]

@@ -265,11 +265,16 @@ async function resolveModelConfiguration(
 }
 
 async function resolveDefaultTarget(
+  preset: ProviderPreset | null,
   providedTarget: TargetType | undefined,
   yes: boolean | undefined
 ): Promise<TargetType> {
   if (providedTarget) {
     return providedTarget;
+  }
+  if (preset?.defaultTarget) {
+    console.log(info(`Using preset default target: ${preset.defaultTarget}`));
+    return preset.defaultTarget;
   }
   if (yes) {
     return 'claude';
@@ -349,7 +354,7 @@ export async function handleApiCreateCommand(args: string[]): Promise<void> {
       parsedArgs.name,
       parsedArgs.yes
     );
-    const target = await resolveDefaultTarget(parsedArgs.target, parsedArgs.yes);
+    const target = await resolveDefaultTarget(null, parsedArgs.target, parsedArgs.yes);
 
     if (name && apiProfileExists(name) && !parsedArgs.force) {
       console.log(fail(`API '${name}' already exists`));
@@ -464,7 +469,7 @@ export async function handleApiCreateCommand(args: string[]): Promise<void> {
   const finalModels = hasClaudeMappings
     ? applyClaudeExtendedContextPreference(models, shouldEnableClaudeLongContext)
     : models;
-  const target = await resolveDefaultTarget(parsedArgs.target, parsedArgs.yes);
+  const target = await resolveDefaultTarget(preset, parsedArgs.target, parsedArgs.yes);
 
   if (parsedArgs.extendedContext !== undefined && !hasClaudeMappings) {
     console.log('');
