@@ -15,7 +15,7 @@ import {
   type CurrentInstall,
   type InstalledPackageState,
 } from '../utils/package-manager-detector';
-import { compareVersionsWithPrerelease } from '../utils/update-checker';
+import { compareVersionsWithPrerelease, type UpdateResult } from '../utils/update-checker';
 import { getVersion } from '../utils/version';
 
 /**
@@ -27,29 +27,6 @@ export interface UpdateOptions {
 }
 
 type TargetTag = 'latest' | 'dev';
-
-type UpdateCheckResult =
-  | {
-      status: 'update_available';
-      current?: string;
-      latest?: string;
-      message?: string;
-      reason?: string;
-    }
-  | {
-      status: 'check_failed';
-      message?: string;
-      latest?: string;
-      current?: string;
-      reason?: string;
-    }
-  | {
-      status: 'no_update';
-      reason?: string;
-      latest?: string;
-      current?: string;
-      message?: string;
-    };
 
 export interface UpdateCommandDeps {
   initUI: typeof initUI;
@@ -64,7 +41,7 @@ export interface UpdateCommandDeps {
     interactive: boolean,
     channel: 'npm' | 'direct',
     targetTag: TargetTag
-  ) => Promise<UpdateCheckResult>;
+  ) => Promise<UpdateResult>;
   spawn: typeof spawn;
 }
 
@@ -73,14 +50,9 @@ async function loadCheckForUpdates(
   interactive: boolean,
   channel: 'npm' | 'direct',
   targetTag: TargetTag
-): Promise<UpdateCheckResult> {
+): Promise<UpdateResult> {
   const { checkForUpdates } = await import('../utils/update-checker');
-  return checkForUpdates(
-    currentVersion,
-    interactive,
-    channel,
-    targetTag
-  ) as Promise<UpdateCheckResult>;
+  return checkForUpdates(currentVersion, interactive, channel, targetTag);
 }
 
 const defaultDeps: UpdateCommandDeps = {
@@ -150,7 +122,7 @@ export async function handleUpdateCommand(
   }
 
   if (updateResult.status === 'no_update') {
-    handleNoUpdate(updateResult.reason);
+    handleNoUpdate(updateResult.reason, currentVersion);
     return;
   }
 
@@ -215,9 +187,7 @@ function handleCheckFailed(
 /**
  * Handle no update available
  */
-function handleNoUpdate(reason: string | undefined): void {
-  const version = getVersion();
-
+function handleNoUpdate(reason: string | undefined, version: string): void {
   let message = `You are already on the latest version (${version})`;
 
   switch (reason) {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { handleUpdateCommand, type UpdateCommandDeps } from '../../../src/commands/update-command';
+import type { UpdateResult } from '../../../src/utils/update-checker';
 
 let logLines: string[] = [];
 let spawnCalls: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> = [];
@@ -18,13 +19,8 @@ type Scenario = {
   afterState: InstalledState;
 };
 
-type UpdateCheckResult =
-  | { status: 'update_available'; current: string; latest: string }
-  | { status: 'no_update' }
-  | { status: 'check_failed'; message: string };
-
 let scenario: Scenario;
-let updateCheckResult: UpdateCheckResult;
+let updateCheckResult: UpdateResult;
 let currentInstallOverride: ReturnType<typeof installDescriptor>;
 let stateReads = 0;
 
@@ -39,7 +35,7 @@ function installDescriptor() {
   };
 }
 
-function createDeps(): UpdateCommandDeps {
+function createDeps(overrides: Partial<UpdateCommandDeps> = {}): UpdateCommandDeps {
   return {
     initUI: async () => {},
     getVersion: () => '7.67.0-dev.5',
@@ -95,6 +91,7 @@ function createDeps(): UpdateCommandDeps {
         },
       };
     }) as typeof UpdateCommandDeps.prototype.spawn,
+    ...overrides,
   };
 }
 
@@ -193,6 +190,20 @@ describe('update-command current install handling', () => {
     await handleUpdateCommand({ force: true, beta: true }, createDeps());
 
     expect(logLines.join('\n')).toContain('could not prove that the current installation changed');
+    expect(exitCodes).toContain(0);
+  });
+
+  it('uses the injected version in the no-update message', async () => {
+    updateCheckResult = { status: 'no_update' };
+
+    await handleUpdateCommand(
+      {},
+      createDeps({
+        getVersion: () => '9.9.9-test.1',
+      })
+    );
+
+    expect(logLines.join('\n')).toContain('latest version (9.9.9-test.1)');
     expect(exitCodes).toContain(0);
   });
 
