@@ -75,6 +75,39 @@ describe('cliproxy catalog --json output', () => {
     }
   });
 
+  it('includes explicit false boolean values in output', () => {
+    handleCatalogJson();
+
+    const parsed = JSON.parse(capturedOutput[0]) as Record<
+      string,
+      Array<Record<string, unknown>>
+    >;
+    const allModels = Object.values(parsed).flat();
+
+    // Static catalog has models with extendedContext: false
+    const withExplicitFalse = allModels.filter((m) => m.extendedContext === false);
+    expect(withExplicitFalse.length).toBeGreaterThan(0);
+  });
+
+  it('includes thinking configuration when present on models', () => {
+    handleCatalogJson();
+
+    const parsed = JSON.parse(capturedOutput[0]) as Record<
+      string,
+      Array<Record<string, unknown>>
+    >;
+    const allModels = Object.values(parsed).flat();
+
+    // Static catalog has thinking models (e.g. Claude Opus 4.6 Thinking)
+    const withThinking = allModels.filter((m) => m.thinking !== undefined);
+    expect(withThinking.length).toBeGreaterThan(0);
+
+    for (const model of withThinking) {
+      const thinking = model.thinking as Record<string, unknown>;
+      expect(['budget', 'levels', 'none']).toContain(thinking.type);
+    }
+  });
+
   it('outputs minified JSON (single line, no whitespace formatting)', () => {
     handleCatalogJson();
 

@@ -10,6 +10,7 @@ import {
 import { getCatalogRoutingSnapshot } from '../../cliproxy/catalog-routing';
 import { ensureManagedModelPrefixes } from '../../cliproxy/managed-model-prefixes';
 import { getProxyTarget } from '../../cliproxy/proxy-target-resolver';
+import type { ThinkingSupport } from '../../cliproxy/model-catalog';
 import type { CLIProxyProvider } from '../../cliproxy/types';
 import type { RemoteModelInfo } from '../../cliproxy/management-api-types';
 import type { CliproxyProviderRoutingHints } from '../../shared/cliproxy-model-routing';
@@ -183,6 +184,7 @@ interface CatalogJsonModel {
   deprecated?: boolean;
   deprecationReason?: string;
   broken?: boolean;
+  thinking?: ThinkingSupport;
   extendedContext?: boolean;
   nativeImageInput?: boolean;
 }
@@ -203,6 +205,7 @@ export function handleCatalogJson(): void {
       if (m.deprecated !== undefined) entry.deprecated = m.deprecated;
       if (m.deprecationReason !== undefined) entry.deprecationReason = m.deprecationReason;
       if (m.broken !== undefined) entry.broken = m.broken;
+      if (m.thinking !== undefined) entry.thinking = m.thinking;
       if (m.extendedContext !== undefined) entry.extendedContext = m.extendedContext;
       if (m.nativeImageInput !== undefined) entry.nativeImageInput = m.nativeImageInput;
       return entry;
