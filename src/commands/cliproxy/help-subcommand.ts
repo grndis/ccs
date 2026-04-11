@@ -39,6 +39,7 @@ export async function showHelp(): Promise<void> {
         ['catalog', 'Show catalog status, routing hints, and pinned short prefixes'],
         ['catalog refresh', 'Sync models from remote CLIProxy'],
         ['catalog reset', 'Clear cache, revert to static catalog'],
+        ['catalog --json', 'Output full model catalog as minified JSON'],
       ],
     ],
     [
