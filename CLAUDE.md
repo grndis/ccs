@@ -183,7 +183,7 @@ Quality gates MUST pass before pushing. **Both projects have identical workflow.
 bun run format              # Step 1: Fix formatting
 bun run lint:fix            # Step 2: Fix lint issues
 bun run validate            # Step 3: Full gate (typecheck + lint + format + maintainability + tests)
-bun run validate:ci-parity  # Step 4: CI parity gate (build + validate + base branch check)
+bun run validate:ci-parity  # Step 4: full CI parity gate (build + validate + base branch check)
 
 # UI project (if UI changed)
 cd ui
@@ -230,7 +230,8 @@ bun run validate            # Step 3: Final check (must pass)
 - `prepublishOnly` / `prepack` runs `build:all` + `validate` + `sync-version.js`
 - CI/CD runs `bun run validate` on every PR (maintainability is warning mode on PR events)
 - husky `pre-commit` runs quick lint/type/format checks
-- husky `pre-push` runs `bun run validate:ci-parity` to block CI drift before push
+- husky `pre-push` runs the full `bun run validate:ci-parity` gate on `main`/`dev`/hotfix branches
+- husky `pre-push` runs a faster feature-branch gate (`typecheck` + `lint:fix` + `format:check` + targeted checks based on changed files) before GitHub CI handles the full matrix
 
 ### Maintainability Baseline Gate
 
@@ -503,7 +504,7 @@ rm -rf ~/.ccs             # Clean environment
 **Quality (BLOCKERS):**
 - [ ] `bun run format` — formatting fixed
 - [ ] `bun run validate` — all checks pass
-- [ ] `bun run validate:ci-parity` — CI parity passed (also enforced by pre-push hook)
+- [ ] `bun run validate:ci-parity` — CI parity passed (required before protected-branch pushes; recommended before PRs)
 - [ ] `cd ui && bun run format && bun run validate` — if UI changed
 - [ ] If touching debt-sensitive code, run `bun run maintainability:check:strict` before opening/merging PR
 - [ ] If strict mode fails and increase is intentional: `bun run maintainability:baseline` and commit `docs/metrics/maintainability-baseline.json`
