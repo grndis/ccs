@@ -135,12 +135,16 @@ export function useUpdateAccountContext() {
     }) => api.accounts.updateContext(name, { context_mode, context_group, continuity_mode }),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      const normalizedGroup = (vars.context_group || 'default')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-');
       const contextSummary =
         vars.context_mode === 'shared'
           ? vars.continuity_mode === 'deeper'
-            ? `shared (${(vars.context_group || 'default').trim().toLowerCase().replace(/\s+/g, '-')}, deeper continuity)`
-            : `shared (${(vars.context_group || 'default').trim().toLowerCase().replace(/\s+/g, '-')}, standard)`
-          : 'isolated';
+            ? `${t('accountsPage.sharedDeeper')} (${normalizedGroup})`
+            : `${t('accountsPage.sharedStandard')} (${normalizedGroup})`
+          : t('accountsPage.isolated');
       toast.success(t('toasts.contextUpdated', { name: vars.name, summary: contextSummary }));
     },
     onError: (error: Error) => {
@@ -180,18 +184,14 @@ export function useConfirmLegacyAccountPolicies() {
     onSuccess: ({ updatedCount, failedCount }) => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       if (failedCount > 0 && updatedCount > 0) {
-        // TODO i18n: missing key for partial legacy confirmation with failures
         toast.error(
-          `Confirmed ${updatedCount} legacy account${updatedCount > 1 ? 's' : ''}, but ${failedCount} update${failedCount > 1 ? 's' : ''} failed. Refreshed account state.`
+          t('toasts.legacyConfirmPartial', { updated: updatedCount, failed: failedCount })
         );
         return;
       }
 
       if (failedCount > 0) {
-        // TODO i18n: missing key for all legacy confirmations failed
-        toast.error(
-          `Failed to confirm ${failedCount} legacy account${failedCount > 1 ? 's' : ''}. Refreshed account state.`
-        );
+        toast.error(t('toasts.legacyConfirmAllFailed', { failed: failedCount }));
         return;
       }
 

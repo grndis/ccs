@@ -1,3 +1,5 @@
+import i18n from '@/lib/i18n';
+
 export interface CodexTopLevelSettingsView {
   model: string | null;
   modelReasoningEffort: string | null;
@@ -58,46 +60,73 @@ base_url = "http://127.0.0.1:8317/api/provider/codex"
 env_key = "CLIPROXY_API_KEY"
 wire_api = "responses"`;
 
-export const KNOWN_CODEX_FEATURES: CodexFeatureCatalogEntry[] = [
-  {
-    name: 'multi_agent',
-    label: 'Multi-agent', // TODO i18n: missing key for codex feature
-    description: 'Enable subagent collaboration tools.', // TODO i18n: missing key
-  },
-  {
-    name: 'unified_exec',
-    label: 'Unified exec', // TODO i18n: missing key for codex feature
-    description: 'Use the PTY-backed unified exec tool.', // TODO i18n: missing key
-  },
-  {
-    name: 'shell_snapshot',
-    label: 'Shell snapshot', // TODO i18n: missing key for codex feature
-    description: 'Reuse shell environment snapshots.', // TODO i18n: missing key
-  },
-  {
-    name: 'apply_patch_freeform',
-    label: 'Apply patch', // TODO i18n: missing key for codex feature
-    description: 'Enable freeform apply_patch edits.', // TODO i18n: missing key
-  },
-  { name: 'js_repl', label: 'JS REPL', description: 'Enable the Node-backed JavaScript REPL.' }, // TODO i18n: missing keys
-  {
-    name: 'runtime_metrics',
-    label: 'Runtime metrics', // TODO i18n: missing key for codex feature
-    description: 'Collect Codex runtime metrics.', // TODO i18n: missing key
-  },
-  {
-    name: 'prevent_idle_sleep',
-    label: 'Prevent idle sleep', // TODO i18n: missing key for codex feature
-    description: 'Keep the machine awake while active.', // TODO i18n: missing key
-  },
-  { name: 'fast_mode', label: 'Fast mode', description: 'Allow the fast service tier path.' }, // TODO i18n: missing keys
-  { name: 'apps', label: 'Apps', description: 'Enable ChatGPT Apps and connectors support.' }, // TODO i18n: missing keys
-  {
-    name: 'smart_approvals',
-    label: 'Smart approvals', // TODO i18n: missing key for codex feature
-    description: 'Route eligible approvals through the guardian flow.', // TODO i18n: missing key
-  },
-];
+export const KNOWN_CODEX_FEATURE_NAMES = [
+  'multi_agent',
+  'unified_exec',
+  'shell_snapshot',
+  'apply_patch_freeform',
+  'js_repl',
+  'runtime_metrics',
+  'prevent_idle_sleep',
+  'fast_mode',
+  'apps',
+  'smart_approvals',
+] as const;
+
+export function getKnownCodexFeatures(): CodexFeatureCatalogEntry[] {
+  return [
+    {
+      name: 'multi_agent',
+      label: i18n.t('codex.featureMultiAgentLabel'),
+      description: i18n.t('codex.featureMultiAgentDesc'),
+    },
+    {
+      name: 'unified_exec',
+      label: i18n.t('codex.featureUnifiedExecLabel'),
+      description: i18n.t('codex.featureUnifiedExecDesc'),
+    },
+    {
+      name: 'shell_snapshot',
+      label: i18n.t('codex.featureShellSnapshotLabel'),
+      description: i18n.t('codex.featureShellSnapshotDesc'),
+    },
+    {
+      name: 'apply_patch_freeform',
+      label: i18n.t('codex.featureApplyPatchLabel'),
+      description: i18n.t('codex.featureApplyPatchDesc'),
+    },
+    {
+      name: 'js_repl',
+      label: i18n.t('codex.featureJsReplLabel'),
+      description: i18n.t('codex.featureJsReplDesc'),
+    },
+    {
+      name: 'runtime_metrics',
+      label: i18n.t('codex.featureRuntimeMetricsLabel'),
+      description: i18n.t('codex.featureRuntimeMetricsDesc'),
+    },
+    {
+      name: 'prevent_idle_sleep',
+      label: i18n.t('codex.featurePreventIdleSleepLabel'),
+      description: i18n.t('codex.featurePreventIdleSleepDesc'),
+    },
+    {
+      name: 'fast_mode',
+      label: i18n.t('codex.featureFastModeLabel'),
+      description: i18n.t('codex.featureFastModeDesc'),
+    },
+    {
+      name: 'apps',
+      label: i18n.t('codex.featureAppsLabel'),
+      description: i18n.t('codex.featureAppsDesc'),
+    },
+    {
+      name: 'smart_approvals',
+      label: i18n.t('codex.featureSmartApprovalsLabel'),
+      description: i18n.t('codex.featureSmartApprovalsDesc'),
+    },
+  ];
+}
 
 function asObject(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -222,9 +251,9 @@ export function readCodexFeatureState(
   const features = asObject(config?.features);
   const state: Record<string, boolean | null> = {};
 
-  for (const feature of KNOWN_CODEX_FEATURES) {
-    const value = features?.[feature.name];
-    state[feature.name] = typeof value === 'boolean' ? value : null;
+  for (const featureName of KNOWN_CODEX_FEATURE_NAMES) {
+    const value = features?.[featureName];
+    state[featureName] = typeof value === 'boolean' ? value : null;
   }
 
   if (features) {

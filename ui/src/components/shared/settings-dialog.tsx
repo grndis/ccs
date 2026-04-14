@@ -120,7 +120,7 @@ function SettingsDialogContent({
         try {
           settingsToSave = JSON.parse(rawJsonContent);
         } catch {
-          throw new Error('Invalid JSON');
+          throw new Error(i18n.t('settingsDialog.invalidJson'));
         }
       } else {
         // Use form-based edits
@@ -147,7 +147,7 @@ function SettingsDialogContent({
       }
 
       if (!res.ok) {
-        throw new Error('Failed to save');
+        throw new Error(i18n.t('settingsDialog.failedSave'));
       }
 
       return res.json();

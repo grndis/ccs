@@ -143,7 +143,7 @@ describe('LogsPage', () => {
 
     render(<LogsPage />);
 
-    expect(screen.getByLabelText('Loading logs workspace')).toBeInTheDocument();
+    expect(screen.getByLabelText('Loading logs...')).toBeInTheDocument();
   });
 
   it('filters by source and search query', async () => {

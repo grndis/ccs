@@ -131,8 +131,7 @@ export function useCliproxyAuthFlow() {
           setState((prev) => ({
             ...prev,
             isAuthenticating: false,
-            // TODO i18n: missing key for 'Authentication timed out. Please try again.'
-            error: 'Authentication timed out. Please try again.',
+            error: t('toasts.providerAuthTimeout'),
           }));
         }
         return;
@@ -161,8 +160,7 @@ export function useCliproxyAuthFlow() {
           const hasAccount = typeof data.account === 'object' && data.account !== null;
           if (!hasAccount) {
             stopPolling();
-            // TODO i18n: missing key for 'Authenticated account could not be registered'
-            const errorMsg = 'Authenticated account could not be registered';
+            const errorMsg = t('toasts.providerAccountRegistrationFailed');
             toast.error(errorMsg);
             setState((prev) => ({
               ...prev,
@@ -226,11 +224,10 @@ export function useCliproxyAuthFlow() {
         }
 
         stopPolling();
-        // TODO i18n: missing key for 'Lost contact with the auth status endpoint'
         const message =
           error instanceof Error && error.message.trim().length > 0
             ? error.message
-            : 'Lost contact with the auth status endpoint';
+            : t('toasts.providerLostStatusEndpoint');
         toast.error(message);
         setState((prev) => ({
           ...prev,
@@ -245,10 +242,9 @@ export function useCliproxyAuthFlow() {
   const startAuth = useCallback(
     async (provider: string, options?: StartAuthOptions) => {
       if (!isValidProvider(provider)) {
-        // TODO i18n: missing key for 'Unknown provider: {{provider}}'
         setState({
           ...INITIAL_STATE,
-          error: `Unknown provider: ${provider}`,
+          error: t('toasts.providerUnknown', { provider }),
         });
         return;
       }
@@ -319,13 +315,12 @@ export function useCliproxyAuthFlow() {
                 openedAuthUrlRef.current = false;
                 setState(INITIAL_STATE);
               } else {
-                // TODO i18n: missing key for 'Authenticated account could not be registered' (start endpoint)
                 const errorMsg =
                   typeof data.error === 'string'
                     ? data.error
                     : success
-                      ? 'Authenticated account could not be registered'
-                      : 'Authentication failed';
+                      ? t('toasts.providerAccountRegistrationFailed')
+                      : t('auth.loginFailed');
                 toast.error(errorMsg);
                 setState((prev) => ({
                   ...prev,
@@ -370,8 +365,8 @@ export function useCliproxyAuthFlow() {
           const success = data.success === true;
 
           if (!response.ok || !success) {
-            // TODO i18n: missing key for 'Failed to start OAuth'
-            const errorMsg = typeof data.error === 'string' ? data.error : 'Failed to start OAuth';
+            const errorMsg =
+              typeof data.error === 'string' ? data.error : t('toasts.providerStartOAuthFailed');
             throw new Error(errorMsg);
           }
 
@@ -418,7 +413,7 @@ export function useCliproxyAuthFlow() {
           setState(INITIAL_STATE);
           return;
         }
-        const message = error instanceof Error ? error.message : 'Authentication failed';
+        const message = error instanceof Error ? error.message : t('auth.loginFailed');
         toast.error(message);
         setState((prev) => ({
           ...prev,
@@ -427,7 +422,7 @@ export function useCliproxyAuthFlow() {
         }));
       }
     },
-    [isActiveAttempt, pollStatus, stopPolling, queryClient]
+    [isActiveAttempt, pollStatus, stopPolling, queryClient, t]
   );
 
   const cancelAuth = useCallback(() => {
@@ -486,21 +481,20 @@ export function useCliproxyAuthFlow() {
           toast.success(t('toasts.providerAuthSuccess', { provider: currentProvider }));
           setState(INITIAL_STATE);
         } else {
-          // TODO i18n: missing key for 'Callback submission failed'
           const errorMsg =
             typeof data.error === 'string'
               ? data.error
               : success
-                ? 'Authenticated account could not be registered'
-                : 'Callback submission failed';
+                ? t('toasts.providerAccountRegistrationFailed')
+                : t('toasts.providerCallbackFailed');
           throw new Error(errorMsg);
         }
       } catch (error) {
         if (!isActiveAttempt(attemptId)) {
           return;
         }
-        // TODO i18n: missing key for 'Failed to submit callback'
-        const message = error instanceof Error ? error.message : 'Failed to submit callback';
+        const message =
+          error instanceof Error ? error.message : t('toasts.providerSubmitCallbackFailed');
         toast.error(message);
         setState((prev) => ({ ...prev, isSubmittingCallback: false, error: message }));
       }

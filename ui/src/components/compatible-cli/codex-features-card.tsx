@@ -30,12 +30,10 @@ export function CodexFeaturesCard({
 
   return (
     <CodexConfigCardShell
-      // TODO i18n: missing key codex.features
-      title="Features"
+      title={t('codex.features')}
       badge="features"
       icon={<Sparkles className="h-4 w-4" />}
-      // TODO i18n: missing key codex.featuresDesc
-      description="Toggle the supported Codex feature flags CCS can safely manage."
+      description={t('codex.featuresDesc')}
       disabledReason={disabledReason}
     >
       <div className="space-y-2">
@@ -81,14 +79,9 @@ export function CodexFeaturesCard({
         <div className="space-y-2">
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {/* TODO i18n: missing key codex.configOnlyFlags */}
-              Existing config-only flags
+              {t('codex.configOnlyFlags')}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {/* TODO i18n: missing key codex.configOnlyFlagsDesc */}
-              These feature keys already exist in your `config.toml`, so CCS can surface them
-              without claiming full catalog coverage.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('codex.configOnlyFlagsDesc')}</p>
           </div>
           {configOnlyFeatures.map(([name, current]) => (
             <div
@@ -99,15 +92,11 @@ export function CodexFeaturesCard({
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium">{name}</p>
                   <Badge variant="secondary" className="text-[10px]">
-                    {/* TODO i18n: missing key codex.existing */}
-                    existing
+                    {t('codex.existing')}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {/* TODO i18n: missing keys codex.nonBooleanForm / codex.discoveredFromFile */}
-                  {current === null
-                    ? 'Stored in a non-boolean form. Use raw TOML if you need to edit it.'
-                    : "Discovered from the current file instead of CCS's built-in catalog."}
+                  {current === null ? t('codex.nonBooleanForm') : t('codex.discoveredFromFile')}
                 </p>
               </div>
               {current === null ? (

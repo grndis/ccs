@@ -11,7 +11,7 @@ import { CodexOverviewTab } from '@/components/compatible-cli/codex-overview-tab
 import { RawConfigEditorPanel } from '@/components/compatible-cli/raw-json-settings-editor-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  KNOWN_CODEX_FEATURES,
+  getKnownCodexFeatures,
   readCodexFeatureState,
   readCodexMcpServers,
   readCodexModelProviders,
@@ -23,6 +23,7 @@ import { safeParseTomlObject } from '@shared/toml-object';
 
 export function CodexPage() {
   const { t } = useTranslation();
+  const featureCatalog = getKnownCodexFeatures();
   const {
     diagnostics,
     diagnosticsLoading,
@@ -198,7 +199,7 @@ export function CodexPage() {
               profileEntries={profileEntries}
               modelProviderEntries={modelProviderEntries}
               mcpServerEntries={mcpServerEntries}
-              featureCatalog={KNOWN_CODEX_FEATURES}
+              featureCatalog={featureCatalog}
               featureState={featureState}
               disabled={structuredControlsDisabled}
               disabledReason={controlsDisabledReason}

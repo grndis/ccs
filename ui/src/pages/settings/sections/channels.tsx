@@ -185,15 +185,17 @@ export default function ChannelsSection() {
             <MessageSquare className="h-5 w-5 text-primary" />
             <div className="space-y-1">
               <p className="font-medium">{t('settingsPage.channelsSection.title')}</p>
-              {/* TODO i18n: missing key for channels description paragraphs */}
               <p className="text-sm text-muted-foreground">
-                Configure official Claude channels here, then run <code>ccs</code> normally on a
-                supported native Claude session.
+                {t('settingsPage.channelsSection.configureDescription', {
+                  defaultValue:
+                    'Configure official Claude channels here, then run `ccs` normally on a supported native Claude session.',
+                })}
               </p>
-              {/* TODO i18n: missing key for channels storage description */}
               <p className="text-sm text-muted-foreground">
-                CCS stores only channel selection in <code>config.yaml</code>. Claude keeps the
-                machine-level channel state under <code>~/.claude/channels/</code>.
+                {t('settingsPage.channelsSection.storageDescription', {
+                  defaultValue:
+                    'CCS stores only channel selection in `config.yaml`. Claude keeps the machine-level channel state under `~/.claude/channels/`.',
+                })}
               </p>
             </div>
           </div>
@@ -212,13 +214,23 @@ export default function ChannelsSection() {
                   <p className="text-sm opacity-90">{status.summary.nextStep}</p>
                 </div>
                 <div className="min-w-[220px] rounded-lg border border-current/10 bg-background/60 p-3 text-sm text-foreground">
-                  {/* TODO i18n: missing key for "Machine checks" */}
-                  <p className="font-medium">Machine checks</p>
+                  <p className="font-medium">
+                    {t('settingsPage.channelsSection.machineChecks', {
+                      defaultValue: 'Machine checks',
+                    })}
+                  </p>
                   <div className="mt-2 space-y-1 text-muted-foreground">
                     <div className="flex items-center justify-between gap-4">
                       <span>Bun</span>
-                      {/* TODO i18n: missing key for "Installed"/"Missing" */}
-                      <span>{status.bunInstalled ? 'Installed' : 'Missing'}</span>
+                      <span>
+                        {status.bunInstalled
+                          ? t('settingsPage.channelsSection.installed', {
+                              defaultValue: 'Installed',
+                            })
+                          : t('settingsPage.channelsSection.missing', {
+                              defaultValue: 'Missing',
+                            })}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span>Claude Code</span>
@@ -230,8 +242,12 @@ export default function ChannelsSection() {
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span>Claude auth</span>
-                      {/* TODO i18n: missing key for "Unknown" */}
-                      <span>{status.auth.authMethod ?? 'Unknown'}</span>
+                      <span>
+                        {status.auth.authMethod ||
+                          t('settingsPage.channelsSection.unknown', {
+                            defaultValue: 'Unknown',
+                          })}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -248,21 +264,36 @@ export default function ChannelsSection() {
 
           {status && (
             <div className="rounded-lg border bg-muted/20 p-4">
-              {/* TODO i18n: missing key for "Fastest path" and step descriptions */}
-              <p className="font-medium">Fastest path</p>
+              <p className="font-medium">
+                {t('settingsPage.channelsSection.fastestPath', {
+                  defaultValue: 'Fastest path',
+                })}
+              </p>
               <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>1. Turn on the channels you want below.</p>
-                <p>2. Save Telegram or Discord bot tokens here if that channel needs one.</p>
                 <p>
-                  3. Run <code>ccs</code> or a native Claude account profile. CCS adds{' '}
-                  <code>--channels</code> for you on supported runs.
+                  {t('settingsPage.channelsSection.fastestStep1', {
+                    defaultValue: '1. Turn on the channels you want below.',
+                  })}
+                </p>
+                <p>
+                  {t('settingsPage.channelsSection.fastestStep2', {
+                    defaultValue:
+                      '2. Save Telegram or Discord bot tokens here if that channel needs one.',
+                  })}
+                </p>
+                <p>
+                  {t('settingsPage.channelsSection.fastestStep3', {
+                    defaultValue:
+                      '3. Run `ccs` or a native Claude account profile. CCS adds `--channels` for you on supported runs.',
+                  })}
                 </p>
                 <p>{status.supportMessage}</p>
               </div>
               <details className="mt-3 rounded-lg border bg-background p-4">
-                {/* TODO i18n: missing key for "Advanced notes and scope" */}
                 <summary className="cursor-pointer text-sm font-medium">
-                  Advanced notes and scope
+                  {t('settingsPage.channelsSection.advancedNotes', {
+                    defaultValue: 'Advanced notes and scope',
+                  })}
                 </summary>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   <p>{status.accountStatusCaveat}</p>
@@ -276,9 +307,10 @@ export default function ChannelsSection() {
             <div className="rounded-lg border bg-background p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
-                  {/* TODO i18n: missing key for "If you run ccs now" */}
                   <p className="font-medium">
-                    If you run <code>ccs</code> now
+                    {t('settingsPage.channelsSection.ifYouRunNow', {
+                      defaultValue: 'If you run `ccs` now',
+                    })}
                   </p>
                   <p className="text-sm text-muted-foreground">{status.launchPreview.detail}</p>
                 </div>
@@ -288,16 +320,20 @@ export default function ChannelsSection() {
               </div>
               <div className="mt-3 space-y-2">
                 <div className="rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                  {/* TODO i18n: missing key for "You type:" */}
-                  <span className="text-muted-foreground">You type:</span>{' '}
+                  <span className="text-muted-foreground">
+                    {t('settingsPage.thinkingSection.youType')}
+                  </span>{' '}
                   {status.launchPreview.command}
                 </div>
                 <div className="rounded-md bg-muted px-3 py-2 font-mono text-sm break-all">
-                  {/* TODO i18n: missing key for "CCS adds:" */}
-                  <span className="text-muted-foreground">CCS adds:</span>{' '}
+                  <span className="text-muted-foreground">
+                    {t('settingsPage.thinkingSection.ccsAdds')}
+                  </span>{' '}
                   {status.launchPreview.appendedArgs.length > 0
                     ? status.launchPreview.appendedArgs.join(' ')
-                    : '(nothing yet)'}
+                    : t('settingsPage.channelsSection.nothingYet', {
+                        defaultValue: '(nothing yet)',
+                      })}
                 </div>
               </div>
               {status.launchPreview.skippedMessages.length > 0 && (
@@ -367,10 +403,22 @@ export default function ChannelsSection() {
                     <div className="space-y-3 rounded-lg bg-muted/30 p-4">
                       <p className="text-sm text-muted-foreground">
                         {!channel.tokenConfigured && channel.tokenSource === 'process_env'
-                          ? `The current CCS process already has ${channel.envKey}. Save it here only if you want persistent Claude channel state.`
+                          ? t('settingsPage.channelsSection.tokenFromProcessEnv', {
+                              envKey: channel.envKey,
+                              defaultValue:
+                                'The current CCS process already has {{envKey}}. Save it here only if you want persistent Claude channel state.',
+                            })
                           : channel.tokenConfigured && channel.processEnvAvailable
-                            ? `${channel.envKey} is saved in Claude channel state, and the current CCS process env also provides it.`
-                            : `Save ${channel.envKey} in Claude's official channel env file. The dashboard never reads the token value back after save.`}
+                            ? t('settingsPage.channelsSection.tokenSavedAndProcessEnv', {
+                                envKey: channel.envKey,
+                                defaultValue:
+                                  '{{envKey}} is saved in Claude channel state, and the current CCS process env also provides it.',
+                              })
+                            : t('settingsPage.channelsSection.tokenSaveHint', {
+                                envKey: channel.envKey,
+                                defaultValue:
+                                  "Save {{envKey}} in Claude's official channel env file. The dashboard never reads the token value back after save.",
+                              })}
                       </p>
                       {channel.tokenConfigured && (
                         <p className="text-sm text-muted-foreground">
@@ -385,10 +433,20 @@ export default function ChannelsSection() {
                         onChange={(event) => updateTokenDraft(channel.id, event.target.value)}
                         placeholder={
                           channel.tokenConfigured
-                            ? `Configured. Enter a new ${channel.envKey} to replace it.`
+                            ? t('settingsPage.channelsSection.tokenConfiguredPlaceholder', {
+                                envKey: channel.envKey,
+                                defaultValue: 'Configured. Enter a new {{envKey}} to replace it.',
+                              })
                             : !channel.tokenConfigured && channel.tokenSource === 'process_env'
-                              ? `Using current CCS process env. Enter a new ${channel.envKey} to save it for Claude.`
-                              : `Paste ${channel.envKey}`
+                              ? t('settingsPage.channelsSection.tokenProcessEnvPlaceholder', {
+                                  envKey: channel.envKey,
+                                  defaultValue:
+                                    'Using current CCS process env. Enter a new {{envKey}} to save it for Claude.',
+                                })
+                              : t('settingsPage.channelsSection.tokenPastePlaceholder', {
+                                  envKey: channel.envKey,
+                                  defaultValue: 'Paste {{envKey}}',
+                                })
                         }
                         disabled={saving}
                       />
@@ -403,8 +461,9 @@ export default function ChannelsSection() {
                           disabled={saving || !tokenDraft.trim()}
                         >
                           <Save className="mr-2 h-4 w-4" />
-                          {/* TODO i18n: missing key for "Save Token" */}
-                          Save Token
+                          {t('settingsPage.channelsSection.saveToken', {
+                            defaultValue: 'Save Token',
+                          })}
                         </Button>
                         <Button
                           variant="outline"
@@ -412,17 +471,19 @@ export default function ChannelsSection() {
                           disabled={saving || !channel.tokenConfigured}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          {/* TODO i18n: missing key for "Clear Saved Token" */}
-                          Clear Saved Token
+                          {t('settingsPage.channelsSection.clearSavedToken', {
+                            defaultValue: 'Clear Saved Token',
+                          })}
                         </Button>
                       </div>
                     </div>
                   )}
 
                   <details className="rounded-lg border bg-background p-4">
-                    {/* TODO i18n: missing key for "Claude-side setup commands" */}
                     <summary className="cursor-pointer text-sm font-medium">
-                      Claude-side setup commands
+                      {t('settingsPage.channelsSection.claudeSideSetupCommands', {
+                        defaultValue: 'Claude-side setup commands',
+                      })}
                     </summary>
                     <div className="mt-3 space-y-2">
                       {(channel.manualSetupCommands ?? []).map((command) => (
@@ -441,10 +502,11 @@ export default function ChannelsSection() {
           </div>
 
           <Alert>
-            {/* TODO i18n: missing key for channels injection disclaimer */}
             <AlertDescription>
-              CCS injects <code>--channels</code> only for the current Claude session. Telegram,
-              Discord, and iMessage stop receiving messages when that Claude session exits.
+              {t('settingsPage.channelsSection.injectionDisclaimer', {
+                defaultValue:
+                  'CCS injects `--channels` only for the current Claude session. Telegram, Discord, and iMessage stop receiving messages when that Claude session exits.',
+              })}
             </AlertDescription>
           </Alert>
 
@@ -456,11 +518,11 @@ export default function ChannelsSection() {
                   <Label className="text-sm font-medium">
                     {t('profileEditorSections.skipPermissionPrompts')}
                   </Label>
-                  {/* TODO i18n: missing key for skip permission description */}
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Optional advanced behavior. CCS adds <code>--dangerously-skip-permissions</code>{' '}
-                    only when at least one selected channel is being auto-enabled and you did not
-                    already pass a permission flag yourself.
+                    {t('settingsPage.channelsSection.skipPermissionDescription', {
+                      defaultValue:
+                        'Optional advanced behavior. CCS adds `--dangerously-skip-permissions` only when at least one selected channel is being auto-enabled and you did not already pass a permission flag yourself.',
+                    })}
                   </p>
                 </div>
               </div>

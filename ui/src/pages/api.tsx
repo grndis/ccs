@@ -38,10 +38,6 @@ import type { ProviderPreset } from '@/lib/provider-presets';
 import { cn } from '@/lib/utils';
 import { CopyButton } from '@/components/ui/copy-button';
 import { useTranslation } from 'react-i18next';
-// TODO i18n: missing keys for apiProfiles: noOrphansFound, confirmRegisterOrphans,
-// registeredWithSkipped, registeredProfiles, copyPrompt, destinationEmpty,
-// exportRedacted, exportDownloaded, importFailed, sidebarTitle, sidebarSubtitle,
-// discoverOrphans, importProfileBundle
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 

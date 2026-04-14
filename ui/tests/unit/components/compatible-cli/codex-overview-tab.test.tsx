@@ -73,13 +73,8 @@ describe('CodexOverviewTab', () => {
     expect(screen.getAllByText('codex').length).toBeGreaterThan(0);
     expect(screen.queryByText('codex --profile default')).not.toBeInTheDocument();
     expect(
-      screen.getAllByText(
-        (_, node) =>
-          node?.textContent?.includes(
-            'Built-in openai and oss providers are also valid native defaults'
-          ) ?? false
-      ).length
-    ).toBeGreaterThan(0);
+      screen.getByText('API profiles continue to default to Claude or Droid.')
+    ).toBeInTheDocument();
   });
 
   it('uses the active named profile when one is selected', () => {

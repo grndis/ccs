@@ -32,10 +32,21 @@ vi.mock(import('react-i18next'), async (importOriginal) => {
           'authMonitor.success': 'Success',
           'authMonitor.failed': 'Failed',
           'authMonitor.successRate': 'Success Rate',
+          'authMonitorLive.live': 'LIVE',
+          'authMonitorLive.accountMonitor': 'Account Monitor',
+          'authMonitorLive.requestsLabel': 'req',
         };
 
         if (key === 'authMonitor.accountsCount') {
           return `${options?.count ?? 0} accounts`;
+        }
+
+        if (key === 'authMonitorLive.updated') {
+          return `Updated ${options && 'time' in options ? String((options as { time?: string }).time ?? '') : ''}`.trim();
+        }
+
+        if (key === 'authMonitorLive.updatedNow') {
+          return 'Updated now';
         }
 
         return translations[key] ?? key;

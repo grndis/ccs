@@ -71,7 +71,8 @@ describe('ModelConfigSection presets', () => {
     expect(screen.queryByText('Free Tier')).not.toBeInTheDocument();
     expect(screen.queryByText('Paid Tier')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Claude Opus 4.6 Thinking' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Gemini Pro' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gemini Pro High' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gemini Pro Low' })).toBeInTheDocument();
     expect(screen.getByTestId('extended-context-toggle')).toBeInTheDocument();
   });
 
@@ -101,12 +102,12 @@ describe('ModelConfigSection presets', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Gemini Pro High' }));
 
     expect(onApplyPreset).toHaveBeenCalledWith({
-      ANTHROPIC_MODEL: 'gemini-3.9-pro-preview',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3.9-pro-preview',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.9-pro-preview',
+      ANTHROPIC_MODEL: 'gemini-3.1-pro-high',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3.1-pro-high',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.1-pro-high',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3-9-flash-preview',
     });
   });

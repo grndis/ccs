@@ -1,3 +1,5 @@
+import i18n from '@/lib/i18n';
+
 export type SupportStatus = 'new' | 'stable' | 'planned';
 
 export type SupportScope = 'target' | 'cliproxy' | 'api-profiles' | 'websearch';
@@ -47,14 +49,14 @@ export interface CliSupportEntry {
   notes?: string;
 }
 
-export const SUPPORT_SCOPE_LABELS: Record<SupportScope, string> = {
-  target: 'Target CLI', // TODO i18n: missing key for support scope target
-  cliproxy: 'CLIProxy Provider', // TODO i18n: missing key for support scope cliproxy
-  'api-profiles': 'API Profile', // TODO i18n: missing key for support scope api-profiles
-  websearch: 'WebSearch', // TODO i18n: missing key for support scope websearch
+const BASE_SUPPORT_SCOPE_LABELS: Record<SupportScope, string> = {
+  target: 'Target CLI',
+  cliproxy: 'CLIProxy Provider',
+  'api-profiles': 'API Profile',
+  websearch: 'WebSearch',
 };
 
-export const SUPPORT_NOTICES: SupportNotice[] = [
+const BASE_SUPPORT_NOTICES: SupportNotice[] = [
   {
     id: 'codex-target-runtime-support',
     title: 'Native Codex runtime support is live',
@@ -204,7 +206,7 @@ export const SUPPORT_NOTICES: SupportNotice[] = [
   },
 ];
 
-export const CLI_SUPPORT_ENTRIES: CliSupportEntry[] = [
+const BASE_CLI_SUPPORT_ENTRIES: CliSupportEntry[] = [
   {
     id: 'claude-target',
     name: 'Claude Code',
@@ -348,20 +350,86 @@ export const CLI_SUPPORT_ENTRIES: CliSupportEntry[] = [
   },
 ];
 
-const SUPPORT_ENTRY_LOOKUP = new Map(CLI_SUPPORT_ENTRIES.map((entry) => [entry.id, entry]));
+function tx(key: string, defaultValue: string, options?: Record<string, unknown>): string {
+  return i18n.t(key, { defaultValue, ...options });
+}
+
+export function getSupportScopeLabels(): Record<SupportScope, string> {
+  return {
+    target: tx('supportCatalog.scope.target', BASE_SUPPORT_SCOPE_LABELS.target),
+    cliproxy: tx('supportCatalog.scope.cliproxy', BASE_SUPPORT_SCOPE_LABELS.cliproxy),
+    'api-profiles': tx(
+      'supportCatalog.scope.apiProfiles',
+      BASE_SUPPORT_SCOPE_LABELS['api-profiles']
+    ),
+    websearch: tx('supportCatalog.scope.websearch', BASE_SUPPORT_SCOPE_LABELS.websearch),
+  };
+}
+
+function localizeSupportNotice(notice: SupportNotice): SupportNotice {
+  return {
+    ...notice,
+    title: tx(`supportCatalog.notice.${notice.id}.title`, notice.title),
+    summary: tx(`supportCatalog.notice.${notice.id}.summary`, notice.summary),
+    primaryAction: tx(`supportCatalog.notice.${notice.id}.primaryAction`, notice.primaryAction),
+    highlights: notice.highlights.map((highlight, index) =>
+      tx(`supportCatalog.notice.${notice.id}.highlight.${index}`, highlight)
+    ),
+    actions: notice.actions.map((action) => ({
+      ...action,
+      label: tx(`supportCatalog.notice.${notice.id}.action.${action.id}.label`, action.label),
+      description: tx(
+        `supportCatalog.notice.${notice.id}.action.${action.id}.description`,
+        action.description
+      ),
+    })),
+    routes: notice.routes.map((route, index) => ({
+      ...route,
+      label: tx(`supportCatalog.notice.${notice.id}.route.${index}.label`, route.label),
+    })),
+  };
+}
+
+function localizeCliSupportEntry(entry: CliSupportEntry): CliSupportEntry {
+  return {
+    ...entry,
+    name: tx(`supportCatalog.entry.${entry.id}.name`, entry.name),
+    summary: tx(`supportCatalog.entry.${entry.id}.summary`, entry.summary),
+    pillars: {
+      baseUrl: tx(`supportCatalog.entry.${entry.id}.pillar.baseUrl`, entry.pillars.baseUrl),
+      auth: tx(`supportCatalog.entry.${entry.id}.pillar.auth`, entry.pillars.auth),
+      model: tx(`supportCatalog.entry.${entry.id}.pillar.model`, entry.pillars.model),
+    },
+    routes: entry.routes.map((route, index) => ({
+      ...route,
+      label: tx(`supportCatalog.entry.${entry.id}.route.${index}.label`, route.label),
+    })),
+    notes: entry.notes ? tx(`supportCatalog.entry.${entry.id}.notes`, entry.notes) : entry.notes,
+  };
+}
+
+export function getSupportNotices(): SupportNotice[] {
+  return BASE_SUPPORT_NOTICES.map(localizeSupportNotice);
+}
+
+export function getCliSupportEntries(): CliSupportEntry[] {
+  return BASE_CLI_SUPPORT_ENTRIES.map(localizeCliSupportEntry);
+}
 
 export function getSupportEntriesForNotice(notice: SupportNotice): CliSupportEntry[] {
+  const supportEntryLookup = new Map(getCliSupportEntries().map((entry) => [entry.id, entry]));
   return notice.entryIds
-    .map((entryId) => SUPPORT_ENTRY_LOOKUP.get(entryId))
+    .map((entryId) => supportEntryLookup.get(entryId))
     .filter((entry): entry is CliSupportEntry => Boolean(entry));
 }
 
 export function getLatestSupportNotice(): SupportNotice | null {
-  if (SUPPORT_NOTICES.length === 0) {
+  const notices = getSupportNotices();
+  if (notices.length === 0) {
     return null;
   }
 
-  return [...SUPPORT_NOTICES].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
+  return [...notices].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
 }
 
 export function formatCatalogDate(value: string): string {

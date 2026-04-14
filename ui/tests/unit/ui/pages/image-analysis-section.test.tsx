@@ -166,7 +166,7 @@ describe('ImageAnalysisSection', () => {
   it('renders global controls and saves updated config', async () => {
     render(<ImageAnalysisSection />, { withSettingsProvider: true });
 
-    expect(await screen.findByText('Image')).toBeInTheDocument();
+    expect(await screen.findByText('Image Analysis')).toBeInTheDocument();
     expect(screen.getByText('Partially ready')).toBeInTheDocument();
     expect(screen.getByText('Core setup')).toBeInTheDocument();
     expect(screen.getAllByText('Native reading').length).toBeGreaterThan(0);
@@ -206,7 +206,7 @@ describe('ImageAnalysisSection', () => {
       },
     });
 
-    expect(await screen.findByText('Image settings saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Settings saved')).toBeInTheDocument();
   });
 
   it('allows saving a disabled configuration even when every provider model is cleared', async () => {
@@ -278,7 +278,7 @@ describe('ImageAnalysisSection', () => {
   it('auto-saves edits without rendering a dedicated save button', async () => {
     const { container } = render(<ImageAnalysisSection />, { withSettingsProvider: true });
 
-    expect(await screen.findByText('Image')).toBeInTheDocument();
+    expect(await screen.findByText('Image Analysis')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass(

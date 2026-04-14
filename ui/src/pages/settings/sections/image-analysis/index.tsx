@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, type ImageAnalysisDashboardData } from '@/lib/api-client';
+import i18n from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useRawConfig } from '../../hooks';
 
@@ -116,25 +117,24 @@ function backendStateClass(state: ImageAnalysisDashboardData['backends'][number]
   }
 }
 
-// TODO i18n: missing keys for currentTargetModeLabel values
 function currentTargetModeLabel(
   mode: ImageAnalysisDashboardData['profiles'][number]['currentTargetMode']
 ): string {
   switch (mode) {
     case 'active':
-      return 'Active';
+      return i18n.t('imageAnalysisStatus.badgeReady');
     case 'bypassed':
-      return 'Bypassed';
+      return i18n.t('imageAnalysisStatus.badgeBypassed');
     case 'fallback':
-      return 'Native fallback';
+      return i18n.t('imageAnalysisStatus.nativeFallback');
     case 'setup':
-      return 'Needs setup';
+      return i18n.t('imageAnalysisStatus.badgeSetup');
     case 'disabled':
-      return 'Disabled';
+      return i18n.t('imageAnalysisStatus.badgeDisabled');
     case 'native':
-      return 'Native';
+      return i18n.t('imageAnalysisStatus.badgeNative');
     case 'unresolved':
-      return 'Native only';
+      return i18n.t('imageAnalysisStatus.nativeImageReading');
   }
 }
 
@@ -157,57 +157,84 @@ function currentTargetModeClass(
   }
 }
 
-// TODO i18n: missing keys for backendStateLabel values
 function backendStateLabel(state: ImageBackend['state']): string {
   switch (state) {
     case 'starts_on_launch':
-      return 'Starts on launch';
+      return i18n.t('imageAnalysisSection.backendStartsOnLaunch', {
+        defaultValue: 'Starts on launch',
+      });
     case 'needs_auth':
-      return 'Needs auth';
+      return i18n.t('imageAnalysisStatus.needsAuth');
     case 'needs_proxy':
-      return 'Needs proxy';
+      return i18n.t('imageAnalysisStatus.needsProxy');
     case 'review':
-      return 'Review';
+      return i18n.t('imageAnalysisSection.review', { defaultValue: 'Review' });
     case 'ready':
-      return 'Ready';
+      return i18n.t('imageAnalysisStatus.badgeReady');
   }
 }
 
-// TODO i18n: missing keys for backendStatusNote values
 function backendStatusNote(backend: ImageBackend | undefined): string | null {
   if (!backend) {
-    return 'No model configured.';
+    return i18n.t('imageAnalysisSection.noModelConfigured', {
+      defaultValue: 'No model configured.',
+    });
   }
 
   switch (backend.state) {
     case 'needs_auth':
-      return backend.authReason || 'Authenticate to route here.';
+      return (
+        backend.authReason ||
+        i18n.t('imageAnalysisSection.authenticateToRoute', {
+          defaultValue: 'Authenticate to route here.',
+        })
+      );
     case 'needs_proxy':
-      return backend.proxyReason || 'Proxy unavailable.';
+      return (
+        backend.proxyReason ||
+        i18n.t('imageAnalysisSection.proxyUnavailable', {
+          defaultValue: 'Proxy unavailable.',
+        })
+      );
     case 'starts_on_launch':
-      return 'Auth ready. Launches locally on demand.';
+      return i18n.t('imageAnalysisSection.authReadyLaunchesLocally', {
+        defaultValue: 'Auth ready. Launches locally on demand.',
+      });
     case 'review':
-      return 'Needs manual review.';
+      return i18n.t('imageAnalysisSection.needsManualReview', {
+        defaultValue: 'Needs manual review.',
+      });
     case 'ready':
       return null;
   }
 }
 
-// TODO i18n: missing keys for routeSourceLabel values
 function routeSourceLabel(source: ImageProfile['resolutionSource']): string {
   switch (source) {
     case 'profile-backend':
-      return 'Explicit mapping';
+      return i18n.t('imageAnalysisSection.explicitMapping', {
+        defaultValue: 'Explicit mapping',
+      });
     case 'fallback-backend':
-      return 'Fallback backend';
+      return i18n.t('imageAnalysisSection.fallbackBackend', {
+        defaultValue: 'Fallback backend',
+      });
     case 'cliproxy-provider':
-      return 'Provider match';
+      return i18n.t('imageAnalysisSection.providerMatch', {
+        defaultValue: 'Provider match',
+      });
     case 'cliproxy-bridge':
-      return 'Bridge match';
+      return i18n.t('imageAnalysisSection.bridgeMatch', {
+        defaultValue: 'Bridge match',
+      });
     case 'native-compatible':
-      return 'Native path';
+      return i18n.t('imageAnalysisSection.nativePath', {
+        defaultValue: 'Native path',
+      });
     case 'copilot-alias':
-      return 'Copilot alias';
+      return i18n.t('imageAnalysisSection.copilotAlias', {
+        defaultValue: 'Copilot alias',
+      });
     default:
       return source.replace(/-/g, ' ');
   }
@@ -970,7 +997,9 @@ export default function ImageAnalysisSection() {
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                         <Input
                           className="h-10 flex-1 border-cyan-500/15 bg-background/88 text-base"
-                          placeholder="Set model" /* TODO i18n: missing key */
+                          placeholder={t('imageAnalysisSection.setModel', {
+                            defaultValue: 'Set model',
+                          })}
                           value={currentModel}
                           disabled={saving}
                           onChange={(event) =>
@@ -999,8 +1028,7 @@ export default function ImageAnalysisSection() {
                               void commitProviderModel(backendId, '');
                             }}
                           >
-                            {/* TODO i18n: missing key for "Clear" */}
-                            Clear
+                            {t('common.clear', { defaultValue: 'Clear' })}
                           </Button>
                         )}
                       </div>
@@ -1032,7 +1060,9 @@ export default function ImageAnalysisSection() {
                   getInsetPanelClass('emerald')
                 )}
               >
-                No profiles prefer native reading yet.
+                {t('imageAnalysisSection.noProfilesPreferNative', {
+                  defaultValue: 'No profiles prefer native reading yet.',
+                })}
               </div>
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
@@ -1051,15 +1081,28 @@ export default function ImageAnalysisSection() {
                             {profile.name}
                           </div>
                           <Badge variant="outline" className="text-[10px]">
-                            {profile.kind === 'variant' ? 'Variant' : 'Profile'}
+                            {profile.kind === 'variant'
+                              ? t('cliproxyPage.variant')
+                              : t('apiProfiles.title')}
                           </Badge>
                           <Badge variant="outline" className="text-[10px]">
-                            {profile.nativeImageCapable ? 'Verified' : 'Review'}
+                            {profile.nativeImageCapable
+                              ? t('imageAnalysisStatus.capabilityVerified')
+                              : t('imageAnalysisSection.review', {
+                                  defaultValue: 'Review',
+                                })}
                           </Badge>
                         </div>
                         <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                          {profile.profileModel || 'Model not detected'} ·{' '}
-                          {profile.nativeImageReason || 'Native read preferred.'}
+                          {profile.profileModel ||
+                            t('imageAnalysisSection.modelNotDetected', {
+                              defaultValue: 'Model not detected',
+                            })}{' '}
+                          ·{' '}
+                          {profile.nativeImageReason ||
+                            t('imageAnalysisSection.nativeReadPreferred', {
+                              defaultValue: 'Native read preferred.',
+                            })}
                         </div>
                       </div>
                       <Badge
@@ -1101,8 +1144,9 @@ export default function ImageAnalysisSection() {
                   ) : (
                     <ChevronDown className="mr-1 h-4 w-4" />
                   )}
-                  {/* TODO i18n: missing key for "Hide"/"Show" */}
-                  {showProfileRouting ? 'Hide' : 'Show'}
+                  {showProfileRouting
+                    ? t('common.hide', { defaultValue: 'Hide' })
+                    : t('common.show', { defaultValue: 'Show' })}
                 </Button>
                 {showProfileRouting && (
                   <Button
@@ -1122,8 +1166,9 @@ export default function ImageAnalysisSection() {
                     disabled={configuredBackendIds.length === 0 || saving}
                   >
                     <Plus className="mr-1 h-4 w-4" />
-                    {/* TODO i18n: missing key for "Add mapping" */}
-                    Add mapping
+                    {t('imageAnalysisSection.addMapping', {
+                      defaultValue: 'Add mapping',
+                    })}
                   </Button>
                 )}
               </div>
@@ -1156,7 +1201,11 @@ export default function ImageAnalysisSection() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 text-[11px] leading-4 text-muted-foreground">
-                            <span>Direct override</span>
+                            <span>
+                              {t('imageAnalysisSection.directOverride', {
+                                defaultValue: 'Direct override',
+                              })}
+                            </span>
                             {!(row.profileName.trim() && row.backendId) && (
                               <Badge variant="outline" className="text-[10px]">
                                 Draft
@@ -1176,8 +1225,7 @@ export default function ImageAnalysisSection() {
                             }}
                           >
                             <Trash2 className="mr-1 h-4 w-4" />
-                            {/* TODO i18n: missing key for "Remove" */}
-                            Remove
+                            {t('common.remove', { defaultValue: 'Remove' })}
                           </Button>
                         </div>
 
@@ -1186,7 +1234,9 @@ export default function ImageAnalysisSection() {
                             value={row.profileName}
                             list="image-profile-suggestions"
                             disabled={saving}
-                            placeholder="Profile or variant name" /* TODO i18n: missing key */
+                            placeholder={t('imageAnalysisSection.profileOrVariantName', {
+                              defaultValue: 'Profile or variant name',
+                            })}
                             className="h-10 border-slate-400/15 bg-background/88 text-base"
                             onChange={(event) => {
                               updateMappingRow(row.id, { profileName: event.target.value });
@@ -1281,7 +1331,9 @@ export default function ImageAnalysisSection() {
                         {profile.name}
                       </div>
                       <Badge variant="outline" className="text-[10px]">
-                        {profile.kind === 'variant' ? 'Variant' : 'Profile'}
+                        {profile.kind === 'variant'
+                          ? t('cliproxyPage.variant')
+                          : t('apiProfiles.title')}
                       </Badge>
                       <Badge variant="outline" className="font-mono text-[10px] uppercase">
                         {profile.target}

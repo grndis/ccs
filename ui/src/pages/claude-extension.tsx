@@ -227,7 +227,10 @@ function TargetStatusCard({
         </div>
 
         <div className="rounded-lg border bg-muted/25 p-3 text-sm text-muted-foreground">
-          {status?.message || 'Verify the binding after saving to inspect the current file state.'}
+          {status?.message ||
+            t('claudeExtensionPage.verifyAfterSaving', {
+              defaultValue: 'Verify the binding after saving to inspect the current file state.',
+            })}
         </div>
 
         <div className="flex gap-2">
@@ -374,7 +377,15 @@ export function ClaudeExtensionPage() {
 
   async function handleDelete(): Promise<void> {
     if (!effectiveSelectedBindingId || !selectedBinding) return;
-    if (!window.confirm(`Delete binding "${selectedBinding.name}"?`)) return;
+    if (
+      !window.confirm(
+        t('claudeExtensionPage.deleteBindingConfirm', {
+          name: selectedBinding.name,
+          defaultValue: 'Delete binding "{{name}}"?',
+        })
+      )
+    )
+      return;
 
     await deleteBinding.mutateAsync(effectiveSelectedBindingId);
     const remaining = bindings.filter((binding) => binding.id !== effectiveSelectedBindingId);
@@ -419,8 +430,9 @@ export function ClaudeExtensionPage() {
                 <div>
                   <h1 className="font-semibold">{t('claudeExtensionPage.title')}</h1>
                   <p className="text-xs text-muted-foreground">
-                    {/* TODO i18n: missing key for subtitle */}
-                    Saved IDE bindings for CCS profiles
+                    {t('claudeExtensionPage.savedBindingsSubtitle', {
+                      defaultValue: 'Saved IDE bindings for CCS profiles',
+                    })}
                   </p>
                 </div>
               </div>
@@ -431,8 +443,7 @@ export function ClaudeExtensionPage() {
             </div>
             <Button size="sm" onClick={startCreateMode} className="gap-1.5">
               <Plus className="h-3.5 w-3.5" />
-              {/* TODO i18n: missing key for "New" */}
-              New
+              {t('claudeExtensionPage.new', { defaultValue: 'New' })}
             </Button>
           </div>
         </div>
@@ -442,34 +453,45 @@ export function ClaudeExtensionPage() {
             <Card className="border-border/60 bg-card/80">
               <CardHeader>
                 <CardTitle className="text-base">
-                  {/* TODO i18n: missing key for "Create binding"/"Binding editor" */}
-                  {creating ? 'Create binding' : 'Binding editor'}
+                  {creating
+                    ? t('claudeExtensionPage.createBinding', { defaultValue: 'Create binding' })
+                    : t('claudeExtensionPage.bindingEditor', { defaultValue: 'Binding editor' })}
                 </CardTitle>
-                {/* TODO i18n: missing key for binding editor description */}
                 <CardDescription>
-                  Save a profile + IDE path once, then apply or reset it from the dashboard.
+                  {t('claudeExtensionPage.bindingEditorDescription', {
+                    defaultValue:
+                      'Save a profile + IDE path once, then apply or reset it from the dashboard.',
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  {/* TODO i18n: missing key for "Binding name" */}
-                  <div className="text-sm font-medium">Binding name</div>
+                  <div className="text-sm font-medium">
+                    {t('settingsPage.thinkingSection.bindingName')}
+                  </div>
                   <Input
                     value={currentDraft.name}
                     onChange={(event) => updateDraft('name', event.target.value)}
-                    placeholder="VS Code · work profile" /* TODO i18n: missing key */
+                    placeholder={t('claudeExtensionPage.bindingNamePlaceholder', {
+                      defaultValue: 'VS Code · work profile',
+                    })}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  {/* TODO i18n: missing key for "CCS profile" */}
-                  <div className="text-sm font-medium">CCS profile</div>
+                  <div className="text-sm font-medium">
+                    {t('claudeExtensionPage.ccsProfile', { defaultValue: 'CCS profile' })}
+                  </div>
                   <Select
                     value={currentDraft.profile}
                     onValueChange={(value) => updateDraft('profile', value)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a profile" /* TODO i18n: missing key */ />
+                      <SelectValue
+                        placeholder={t('claudeExtensionPage.selectProfile', {
+                          defaultValue: 'Select a profile',
+                        })}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {profiles.map((profile) => (
@@ -481,7 +503,9 @@ export function ClaudeExtensionPage() {
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     {selectedProfile?.description ||
-                      'Choose which CCS profile the IDE should inherit.'}
+                      t('claudeExtensionPage.chooseProfileHint', {
+                        defaultValue: 'Choose which CCS profile the IDE should inherit.',
+                      })}
                   </p>
                 </div>
 
@@ -494,7 +518,11 @@ export function ClaudeExtensionPage() {
                     onValueChange={(value) => updateDraft('host', value as BindingDraft['host'])}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a host" /* TODO i18n: missing key */ />
+                      <SelectValue
+                        placeholder={t('claudeExtensionPage.selectHost', {
+                          defaultValue: 'Select a host',
+                        })}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {hosts.map((host) => (
@@ -515,22 +543,29 @@ export function ClaudeExtensionPage() {
                     onChange={(event) => updateDraft('ideSettingsPath', event.target.value)}
                     placeholder={
                       selectedHost?.defaultSettingsPath ||
-                      'Leave blank for the default user settings path' /* TODO i18n: missing key */
+                      t('claudeExtensionPage.ideSettingsPathPlaceholder', {
+                        defaultValue: 'Leave blank for the default user settings path',
+                      })
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Leave blank to use the default user settings path for{' '}
+                    {t('claudeExtensionPage.ideSettingsPathHint', {
+                      defaultValue: 'Leave blank to use the default user settings path for',
+                    })}{' '}
                     {selectedHost?.label || 'this IDE'}.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  {/* TODO i18n: missing key for "Notes" */}
-                  <div className="text-sm font-medium">Notes</div>
+                  <div className="text-sm font-medium">
+                    {t('settingsPage.thinkingSection.notes')}
+                  </div>
                   <Input
                     value={currentDraft.notes}
                     onChange={(event) => updateDraft('notes', event.target.value)}
-                    placeholder="Optional reminder for this machine or workspace" /* TODO i18n: missing key */
+                    placeholder={t('claudeExtensionPage.notesPlaceholder', {
+                      defaultValue: 'Optional reminder for this machine or workspace',
+                    })}
                   />
                 </div>
 
@@ -545,12 +580,12 @@ export function ClaudeExtensionPage() {
                     ) : (
                       <Save className="h-3.5 w-3.5" />
                     )}
-                    {/* TODO i18n: missing key for "Create"/"Save" */}
-                    {creating ? 'Create' : 'Save'}
+                    {creating
+                      ? t('claudeExtensionPage.create', { defaultValue: 'Create' })
+                      : t('claudeExtensionPage.save', { defaultValue: 'Save' })}
                   </Button>
                   <Button variant="outline" onClick={startCreateMode}>
-                    {/* TODO i18n: missing key for "Reset form" */}
-                    Reset form
+                    {t('claudeExtensionPage.resetForm', { defaultValue: 'Reset form' })}
                   </Button>
                 </div>
 
@@ -562,8 +597,7 @@ export function ClaudeExtensionPage() {
                     disabled={deleteBinding.isPending}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    {/* TODO i18n: missing key for "Delete binding" */}
-                    Delete binding
+                    {t('claudeExtensionPage.deleteBinding', { defaultValue: 'Delete binding' })}
                   </Button>
                 ) : null}
               </CardContent>
@@ -571,8 +605,7 @@ export function ClaudeExtensionPage() {
 
             <div className="space-y-2">
               <div className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {/* TODO i18n: missing key for "Saved bindings" */}
-                Saved bindings
+                {t('claudeExtensionPage.savedBindings', { defaultValue: 'Saved bindings' })}
               </div>
               <div className="space-y-2">
                 {bindings.length > 0 ? (
@@ -591,9 +624,10 @@ export function ClaudeExtensionPage() {
                 ) : (
                   <Card className="border-dashed border-border/60 bg-card/60">
                     <CardContent className="pt-6 text-sm text-muted-foreground">
-                      {/* TODO i18n: missing key for empty bindings text */}
-                      No saved bindings yet. Create one to manage apply, reset, and drift checks
-                      from the dashboard.
+                      {t('claudeExtensionPage.emptyBindings', {
+                        defaultValue:
+                          'No saved bindings yet. Create one to manage apply, reset, and drift checks from the dashboard.',
+                      })}
                     </CardContent>
                   </Card>
                 )}
@@ -626,13 +660,16 @@ export function ClaudeExtensionPage() {
                 </div>
                 <div className="max-w-5xl">
                   <h2 className="text-2xl font-semibold tracking-tight">
-                    {/* TODO i18n: missing key for default binding name */}
-                    {selectedBinding?.name || 'Claude extension binding'}
+                    {selectedBinding?.name ||
+                      t('claudeExtensionPage.defaultBindingName', {
+                        defaultValue: 'Claude extension binding',
+                      })}
                   </h2>
-                  {/* TODO i18n: missing key for binding description */}
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Manage the shared Claude settings file and the IDE-local settings file as two
-                    scoped targets.
+                    {t('claudeExtensionPage.bindingDescription', {
+                      defaultValue:
+                        'Manage the shared Claude settings file and the IDE-local settings file as two scoped targets.',
+                    })}
                   </p>
                 </div>
               </div>
@@ -648,8 +685,7 @@ export function ClaudeExtensionPage() {
                   ) : (
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  {/* TODO i18n: missing key for "Verify" */}
-                  Verify
+                  {t('claudeExtensionPage.verify', { defaultValue: 'Verify' })}
                 </Button>
                 {setup ? (
                   <CopyButton value={setup.sharedSettings.command} label="Copy persist command" />
@@ -669,8 +705,9 @@ export function ClaudeExtensionPage() {
             {!activeError ? (
               <Tabs defaultValue="overview" className="flex flex-col gap-6">
                 <TabsList className="w-full justify-start">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>{' '}
-                  {/* TODO i18n: missing key */}
+                  <TabsTrigger value="overview">
+                    {t('claudeExtensionPage.overview', { defaultValue: 'Overview' })}
+                  </TabsTrigger>{' '}
                   <TabsTrigger value="advanced">
                     {t('settingsPage.thinkingSection.advanced')}
                   </TabsTrigger>
@@ -679,11 +716,20 @@ export function ClaudeExtensionPage() {
                 <TabsContent value="overview" className="mt-0 space-y-6">
                   <div className="grid gap-6 xl:grid-cols-2">
                     <TargetStatusCard
-                      title="Shared Claude settings"
-                      description="Writes the managed env block inside ~/.claude/settings.json so CLI and IDE behavior stay aligned."
+                      title={t('claudeExtensionPage.sharedClaudeSettings', {
+                        defaultValue: 'Shared Claude settings',
+                      })}
+                      description={t('claudeExtensionPage.sharedClaudeSettingsDescription', {
+                        defaultValue:
+                          'Writes the managed env block inside ~/.claude/settings.json so CLI and IDE behavior stay aligned.',
+                      })}
                       status={status?.sharedSettings}
-                      applyLabel="Apply shared" /* TODO i18n: missing key */
-                      resetLabel="Reset shared" /* TODO i18n: missing key */
+                      applyLabel={t('claudeExtensionPage.applyShared', {
+                        defaultValue: 'Apply shared',
+                      })}
+                      resetLabel={t('claudeExtensionPage.resetShared', {
+                        defaultValue: 'Reset shared',
+                      })}
                       onApply={() => runBindingAction('shared', 'apply')}
                       onReset={() => runBindingAction('shared', 'reset')}
                       disabled={creating}
@@ -693,8 +739,8 @@ export function ClaudeExtensionPage() {
                       title={`${selectedHost?.label || 'IDE'} settings.json`}
                       description="Writes only the Anthropic extension keys so unrelated editor preferences stay untouched."
                       status={status?.ideSettings}
-                      applyLabel="Apply IDE" /* TODO i18n: missing key */
-                      resetLabel="Reset IDE" /* TODO i18n: missing key */
+                      applyLabel={t('claudeExtensionPage.applyIde', { defaultValue: 'Apply IDE' })}
+                      resetLabel={t('claudeExtensionPage.resetIde', { defaultValue: 'Reset IDE' })}
                       onApply={() => runBindingAction('ide', 'apply')}
                       onReset={() => runBindingAction('ide', 'reset')}
                       disabled={creating}
@@ -708,32 +754,41 @@ export function ClaudeExtensionPage() {
                         <CardTitle className="text-base">
                           {t('settingsPage.thinkingSection.resolvedBinding')}
                         </CardTitle>
-                        {/* TODO i18n: missing key for resolved binding description */}
                         <CardDescription>
-                          The binding uses the same profile resolution as `ccs persist` and `ccs
-                          env`.
+                          {t('claudeExtensionPage.resolvedBindingDescription', {
+                            defaultValue:
+                              'The binding uses the same profile resolution as `ccs persist` and `ccs env`.',
+                          })}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <DetailRow
-                          label="Profile"
+                          label={t('claudeExtensionPage.profile', { defaultValue: 'Profile' })}
                           value={setup?.profile.label || currentDraft.profile || 'Not selected'}
                         />
                         <DetailRow
-                          label="Profile type"
+                          label={t('claudeExtensionPage.profileType', {
+                            defaultValue: 'Profile type',
+                          })}
                           value={setup?.profile.profileType || 'Unknown'}
                         />
                         <DetailRow label="IDE host" value={selectedHost?.label || 'Not selected'} />
                         <DetailRow
-                          label="IDE path mode"
+                          label={t('claudeExtensionPage.idePathMode', {
+                            defaultValue: 'IDE path mode',
+                          })}
                           value={
                             currentDraft.ideSettingsPath.trim()
-                              ? 'Custom path'
-                              : 'Default user path'
+                              ? t('claudeExtensionPage.customPath', { defaultValue: 'Custom path' })
+                              : t('claudeExtensionPage.defaultUserPath', {
+                                  defaultValue: 'Default user path',
+                                })
                           }
                         />
                         <DetailRow
-                          label="Effective IDE path"
+                          label={t('claudeExtensionPage.effectiveIdePath', {
+                            defaultValue: 'Effective IDE path',
+                          })}
                           value={
                             status?.ideSettings.path ||
                             currentDraft.ideSettingsPath.trim() ||
@@ -748,12 +803,22 @@ export function ClaudeExtensionPage() {
                           }
                         />
                         <DetailRow
-                          label="Persist command"
-                          value={setup?.sharedSettings.command || 'Save a valid binding first'}
+                          label={t('claudeExtensionPage.persistCommand', {
+                            defaultValue: 'Persist command',
+                          })}
+                          value={
+                            setup?.sharedSettings.command ||
+                            t('claudeExtensionPage.saveValidBindingFirst', {
+                              defaultValue: 'Save a valid binding first',
+                            })
+                          }
                           mono
                         />
                         {currentDraft.notes.trim() ? (
-                          <DetailRow label="Notes" value={currentDraft.notes.trim()} />
+                          <DetailRow
+                            label={t('settingsPage.thinkingSection.notes')}
+                            value={currentDraft.notes.trim()}
+                          />
                         ) : null}
                       </CardContent>
                     </Card>
@@ -763,9 +828,11 @@ export function ClaudeExtensionPage() {
                         <CardTitle className="text-base">
                           {t('settingsPage.thinkingSection.managedPayload')}
                         </CardTitle>
-                        {/* TODO i18n: missing key for managed payload description */}
                         <CardDescription>
-                          Keep the main view short. The full JSON stays in the Advanced tab.
+                          {t('claudeExtensionPage.managedPayloadDescription', {
+                            defaultValue:
+                              'Keep the main view short. The full JSON stays in the Advanced tab.',
+                          })}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -788,17 +855,24 @@ export function ClaudeExtensionPage() {
                           {setup?.env.length ? (
                             <div className="space-y-2">
                               <div className="font-medium">
-                                CCS will inject {setup.env.length} environment values.
+                                {t('claudeExtensionPage.envInjected', {
+                                  count: setup.env.length,
+                                  defaultValue: 'CCS will inject {{count}} environment values.',
+                                })}
                               </div>
                               <div className="text-muted-foreground">
-                                The IDE-local target receives the extension schema. The shared
-                                target receives the same env block through Claude settings.
+                                {t('claudeExtensionPage.envInjectedDescription', {
+                                  defaultValue:
+                                    'The IDE-local target receives the extension schema. The shared target receives the same env block through Claude settings.',
+                                })}
                               </div>
                             </div>
                           ) : (
                             <div className="text-muted-foreground">
-                              This profile resolves to native Claude defaults, so apply/reset mainly
-                              clears existing CCS-managed overrides.
+                              {t('claudeExtensionPage.nativeDefaultsDescription', {
+                                defaultValue:
+                                  'This profile resolves to native Claude defaults, so apply/reset mainly clears existing CCS-managed overrides.',
+                              })}
                             </div>
                           )}
                         </div>
@@ -814,8 +888,9 @@ export function ClaudeExtensionPage() {
                               applyBinding.variables?.target === 'all' ? (
                                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                               ) : null}
-                              {/* TODO i18n: missing key for "Apply both targets" */}
-                              Apply both targets
+                              {t('claudeExtensionPage.applyBothTargets', {
+                                defaultValue: 'Apply both targets',
+                              })}
                             </Button>
                             <Button
                               variant="outline"
@@ -823,14 +898,17 @@ export function ClaudeExtensionPage() {
                               onClick={() => runBindingAction('all', 'reset')}
                               disabled={resetBinding.isPending}
                             >
-                              {/* TODO i18n: missing key for "Reset both targets" */}
-                              Reset both targets
+                              {t('claudeExtensionPage.resetBothTargets', {
+                                defaultValue: 'Reset both targets',
+                              })}
                             </Button>
                           </div>
                         ) : (
                           <div className="rounded-lg border border-dashed bg-muted/15 p-4 text-sm text-muted-foreground">
-                            {/* TODO i18n: missing key for "Save this draft..." */}
-                            Save this draft to unlock apply, reset, and verify actions.
+                            {t('claudeExtensionPage.saveDraftToUnlock', {
+                              defaultValue:
+                                'Save this draft to unlock apply, reset, and verify actions.',
+                            })}
                           </div>
                         )}
                       </CardContent>
@@ -905,13 +983,20 @@ export function ClaudeExtensionPage() {
                     <>
                       <div className="grid gap-6 xl:grid-cols-2">
                         <CodeBlockCard
-                          title="Shared Claude settings JSON"
-                          description="Managed env block for ~/.claude/settings.json."
+                          title={t('claudeExtensionPage.sharedSettingsJson', {
+                            defaultValue: 'Shared Claude settings JSON',
+                          })}
+                          description={t('claudeExtensionPage.sharedSettingsJsonDescription', {
+                            defaultValue: 'Managed env block for ~/.claude/settings.json.',
+                          })}
                           value={setup.sharedSettings.json}
                         />
                         <CodeBlockCard
                           title={`${selectedHost?.label || 'IDE'} settings JSON`}
-                          description={`Anthropic extension snippet for ${selectedHost?.settingsTargetLabel || 'settings.json'}.`}
+                          description={t('claudeExtensionPage.ideSettingsJsonDescription', {
+                            label: selectedHost?.settingsTargetLabel || 'settings.json',
+                            defaultValue: 'Anthropic extension snippet for {{label}}.',
+                          })}
                           value={setup.ideSettings.json}
                         />
                       </div>
@@ -921,16 +1006,22 @@ export function ClaudeExtensionPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <CardTitle className="text-base">
-                                Resolved environment payload
+                                {t('claudeExtensionPage.resolvedEnvironmentPayload', {
+                                  defaultValue: 'Resolved environment payload',
+                                })}
                               </CardTitle>
                               <CardDescription>
-                                Exact environment values that the extension receives after CCS
-                                expands this profile.
+                                {t('claudeExtensionPage.resolvedEnvironmentPayloadDescription', {
+                                  defaultValue:
+                                    'Exact environment values that the extension receives after CCS expands this profile.',
+                                })}
                               </CardDescription>
                             </div>
                             <CopyButton
                               value={JSON.stringify(setup.env, null, 2)}
-                              label="Copy environment payload"
+                              label={t('claudeExtensionPage.copyEnvironmentPayload', {
+                                defaultValue: 'Copy environment payload',
+                              })}
                             />
                           </div>
                         </CardHeader>
