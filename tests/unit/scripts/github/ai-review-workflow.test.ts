@@ -16,11 +16,12 @@ describe('PR-Agent review lane migration', () => {
 
     const workflow = fs.readFileSync(workflowPath, 'utf8');
     const config = fs.readFileSync(prAgentConfigPath, 'utf8');
+    const appTokenUsages = workflow.match(/uses: actions\/create-github-app-token@v1/g) ?? [];
 
     expect(workflow).toContain('name: AI Code Review');
     expect(workflow).toContain('runs-on: [self-hosted, cliproxy]');
     expect(workflow).toContain('uses: qodo-ai/pr-agent');
-    expect(workflow).toContain('uses: actions/create-github-app-token@v1');
+    expect(appTokenUsages).toHaveLength(2);
     expect(workflow).toContain('OPENAI.API_BASE');
     expect(workflow).toContain('OPENAI_KEY');
     expect(workflow).toContain('vars.AI_REVIEW_BASE_URL');
@@ -34,6 +35,9 @@ describe('PR-Agent review lane migration', () => {
     expect(workflow).toContain("format('dispatch-{0}', github.run_id)");
     expect(workflow).toContain('CCS_REVIEWER_APP_ID');
     expect(workflow).toContain('CCS_REVIEWER_PRIVATE_KEY');
+    expect(workflow).toContain('id: pr-agent-app-token');
+    expect(workflow).toContain('GITHUB_TOKEN: ${{ steps.pr-agent-app-token.outputs.token }}');
+    expect(workflow).not.toContain('GITHUB_TOKEN: ${{ github.token }}');
     expect(workflow).not.toContain('uses: anthropics/claude-code-action@v1');
 
     expect(config).toContain('[config]');

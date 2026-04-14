@@ -93,7 +93,6 @@ jobs:
       pull-requests: write
       contents: read
     env:
-      GITHUB_TOKEN: ${{ github.token }}
       OPENAI_KEY: ${{ secrets.AI_REVIEW_API_KEY }}
       "OPENAI.API_BASE": ${{ vars.AI_REVIEW_BASE_URL }}
       "config.model": ${{ vars.AI_REVIEW_MODEL }}
@@ -102,5 +101,14 @@ jobs:
       "github_action_config.auto_improve": "false"
 
     steps:
+      - name: Generate App Token
+        id: pr-agent-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CCS_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.CCS_REVIEWER_PRIVATE_KEY }}
+
       - name: Run PR-Agent
         uses: qodo-ai/pr-agent@v0.34
+        env:
+          GITHUB_TOKEN: ${{ steps.pr-agent-app-token.outputs.token }}
