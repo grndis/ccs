@@ -24,6 +24,8 @@ describe('PR-Agent review lane migration', () => {
     expect(workflow).toContain('OPENAI_KEY');
     expect(workflow).toContain('config.model');
     expect(workflow).toContain('github_action_config.auto_review');
+    expect(workflow).toContain("github.event.comment.body == '/review'");
+    expect(workflow).toContain('github.event.comment.author_association');
     expect(workflow).not.toContain('uses: anthropics/claude-code-action@v1');
     expect(workflow).not.toContain('AI_REVIEW_API_KEY');
 

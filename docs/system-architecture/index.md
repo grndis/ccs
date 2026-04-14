@@ -438,7 +438,7 @@ Configured model from `.pr_agent.toml`
 
 - `ai-review.yml` owns automation wiring such as runner selection, PR-Agent action usage, and environment flags like `OPENAI.*` plus `github_action_config.*`.
 - `.pr_agent.toml` in the repo root owns model selection and review instructions for this repository.
-- Contributors should treat PR-Agent comments and `/review` reruns as the primary AI review path for PRs targeting CCS.
+- Contributors should treat PR-Agent comments and trusted `/review` reruns as the primary AI review path for PRs targeting CCS.
 
 ### Runtime Dependencies
 
