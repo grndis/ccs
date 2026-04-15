@@ -89,9 +89,9 @@ describe('AccountSurfaceCard', () => {
       />
     );
 
-    expect(screen.getByText('Pers')).toBeInTheDocument();
     expect(screen.getByText('Pro')).toBeInTheDocument();
     expect(screen.queryByText('Free')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pers')).not.toBeInTheDocument();
   });
 
   it('falls back to a single free badge when Codex quota detects a free plan', () => {
@@ -124,8 +124,8 @@ describe('AccountSurfaceCard', () => {
       />
     );
 
-    expect(screen.getByText('Pers')).toBeInTheDocument();
     expect(screen.getByText('Pro')).toBeInTheDocument();
+    expect(screen.queryByText('Pers')).not.toBeInTheDocument();
   });
 
   it('lets live paid Codex plans override stale free identity badges', () => {
@@ -142,8 +142,8 @@ describe('AccountSurfaceCard', () => {
       />
     );
 
-    expect(screen.getByText('Pers')).toBeInTheDocument();
     expect(screen.getByText('Plus')).toBeInTheDocument();
+    expect(screen.queryByText('Pers')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Free')).not.toBeInTheDocument();
   });
 });

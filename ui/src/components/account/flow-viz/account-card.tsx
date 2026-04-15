@@ -6,6 +6,7 @@ import { AccountSurfaceCard } from '@/components/account/shared/account-surface-
 import { QuotaTooltipContent } from '@/components/shared/quota-tooltip-content';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getCodexIdentityBadge, type CodexIdentityBadge } from '@/lib/account-identity';
 import {
   cn,
   formatQuotaPercent,
@@ -88,68 +89,56 @@ function getCompactQuotaColor(percentage: number) {
   return 'bg-red-500';
 }
 
-function getCodexPlanAudience(quota: unknown): AccountAudience {
+function getCodexQuotaBadge(quota: unknown): CodexIdentityBadge {
   if (!quota || typeof quota !== 'object' || !('planType' in quota)) {
-    return 'unknown';
+    return { audience: 'unknown', label: null };
   }
 
   const planType = (quota as { planType?: unknown }).planType;
   if (typeof planType !== 'string' || planType.trim().length === 0) {
-    return 'unknown';
+    return { audience: 'unknown', label: null };
   }
 
-  if (planType === 'team') return 'business';
-  if (planType === 'free') return 'free';
-  if (planType === 'plus' || planType === 'pro') return 'personal';
-  return 'unknown';
+  if (planType === 'team') {
+    return { audience: 'business', label: 'Business' };
+  }
+
+  if (planType === 'free') {
+    return { audience: 'free', label: 'Free' };
+  }
+
+  if (planType === 'plus') {
+    return { audience: 'personal', label: 'Plus' };
+  }
+
+  if (planType === 'pro') {
+    return { audience: 'personal', label: 'Pro' };
+  }
+
+  return { audience: 'unknown', label: null };
 }
 
-function resolveCodexAudience(
-  identityAudience: AccountAudience,
-  planAudience: AccountAudience
-): AccountAudience {
-  if (planAudience === 'unknown') {
-    return identityAudience;
+function resolveCodexBadge(
+  identityBadge: CodexIdentityBadge,
+  quotaBadge: CodexIdentityBadge
+): CodexIdentityBadge {
+  if (!quotaBadge.label) {
+    return identityBadge;
   }
 
-  if (planAudience === 'business') {
-    return 'business';
+  if (
+    quotaBadge.label === 'Business' ||
+    quotaBadge.label === 'Plus' ||
+    quotaBadge.label === 'Pro'
+  ) {
+    return quotaBadge;
   }
 
-  if (identityAudience === 'business') {
-    return 'business';
+  if (quotaBadge.label === 'Free' && identityBadge.label && identityBadge.label !== 'Free') {
+    return identityBadge;
   }
 
-  if (planAudience === 'personal') {
-    return 'personal';
-  }
-
-  if (planAudience === 'free') {
-    return identityAudience === 'unknown' || identityAudience === 'free'
-      ? 'free'
-      : identityAudience;
-  }
-
-  return identityAudience;
-}
-
-function getCodexPlanDetailLabel(quota: unknown): string | null {
-  if (!quota || typeof quota !== 'object' || !('planType' in quota)) {
-    return null;
-  }
-
-  const planType = (quota as { planType?: unknown }).planType;
-  if (typeof planType !== 'string' || planType.trim().length === 0) {
-    return null;
-  }
-
-  if (planType === 'free' || planType === 'team') {
-    return null;
-  }
-
-  return planType === 'plus' || planType === 'pro'
-    ? planType[0].toUpperCase() + planType.slice(1)
-    : null;
+  return quotaBadge;
 }
 
 function getVariantDetailLabel(
@@ -160,9 +149,32 @@ function getVariantDetailLabel(
   },
   quota?: unknown
 ) {
-  return (
-    variant.detailLabel ?? variant.compactDetailLabel ?? getCodexPlanDetailLabel(quota) ?? null
-  );
+  return resolveCodexBadge(
+    getCodexIdentityBadge({
+      audience: variant.audience,
+      detailLabel: variant.detailLabel,
+      compactDetailLabel: variant.compactDetailLabel,
+    }),
+    getCodexQuotaBadge(quota)
+  ).label;
+}
+
+function getVariantBadgeAudience(
+  variant: {
+    audience: AccountAudience;
+    detailLabel?: string | null;
+    compactDetailLabel?: string | null;
+  },
+  quota?: unknown
+) {
+  return resolveCodexBadge(
+    getCodexIdentityBadge({
+      audience: variant.audience,
+      detailLabel: variant.detailLabel,
+      compactDetailLabel: variant.compactDetailLabel,
+    }),
+    getCodexQuotaBadge(quota)
+  ).audience;
 }
 
 function getVariantCompactDetailLabel(
@@ -173,9 +185,7 @@ function getVariantCompactDetailLabel(
   },
   quota?: unknown
 ) {
-  return (
-    variant.compactDetailLabel ?? variant.detailLabel ?? getCodexPlanDetailLabel(quota) ?? null
-  );
+  return getVariantDetailLabel(variant, quota);
 }
 
 function getDetailedAudienceLabel(audience: AccountAudience): string | null {
@@ -191,7 +201,7 @@ function getVariantAudience(
   },
   quota?: unknown
 ) {
-  return resolveCodexAudience(variant.audience, getCodexPlanAudience(quota));
+  return getVariantBadgeAudience(variant, quota);
 }
 
 function getVariantInlineLabel(
@@ -204,14 +214,7 @@ function getVariantInlineLabel(
   },
   quota?: unknown
 ) {
-  const detailLabel = getVariantDetailLabel(variant, quota);
-  const audience = getVariantAudience(variant, quota);
-  const audienceLabel =
-    variant.audience === audience
-      ? (variant.audienceLabel ?? getDetailedAudienceLabel(audience))
-      : getDetailedAudienceLabel(audience);
-  const composedLabel = [audienceLabel, detailLabel].filter(Boolean).join(' · ');
-  return composedLabel || variant.inlineLabel || null;
+  return getVariantDetailLabel(variant, quota) || variant.inlineLabel || null;
 }
 
 function getVariantMarkerLabel(
@@ -227,8 +230,7 @@ function getVariantMarkerLabel(
   const audience = getVariantAudience(variant, quota);
   const compactDetailLabel = getVariantCompactDetailLabel(variant, quota);
   if (audience === 'business') {
-    const businessVariantCount = audienceCounts.get('business') ?? 0;
-    return businessVariantCount > 1 && compactDetailLabel ? compactDetailLabel : 'Biz';
+    return 'Biz';
   }
   if (audience === 'free') {
     return compactDetailLabel ?? 'Free';
@@ -237,11 +239,7 @@ function getVariantMarkerLabel(
     return compactDetailLabel ?? 'Pers';
   }
 
-  const normalizedFallback =
-    compactDetailLabel?.trim() ||
-    getDetailedAudienceLabel(audience) ||
-    variant.audienceLabel?.trim() ||
-    variant.detailLabel?.trim();
+  const normalizedFallback = compactDetailLabel?.trim() || getDetailedAudienceLabel(audience);
   return normalizedFallback?.[0]?.toUpperCase() ?? '?';
 }
 

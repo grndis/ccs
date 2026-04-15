@@ -154,10 +154,10 @@ describe('AccountCard grouped quota tooltip', () => {
       />
     );
 
-    expect(screen.getByTitle('Business · Workspace 04a0f049 • Free')).toBeInTheDocument();
+    expect(screen.getByTitle('Business • Free')).toBeInTheDocument();
     expect(screen.getByText('Biz')).toBeInTheDocument();
 
-    await userEvent.hover(screen.getByText('Business · Workspace 04a0f049'));
+    await userEvent.hover(screen.getByText('Business'));
     const businessPlan = (await screen.findAllByText('Plan: team')).find((node) =>
       node.closest('[data-slot="tooltip-content"]')
     );
@@ -202,9 +202,8 @@ describe('AccountCard grouped quota tooltip', () => {
       />
     );
 
-    expect(screen.getByTitle('Business · Workspace 04a0f049 • Personal · Pro')).toBeInTheDocument();
-    expect(screen.getByText('Personal · Pro')).toBeInTheDocument();
+    expect(screen.getByTitle('Business • Pro')).toBeInTheDocument();
+    expect(screen.getAllByText('Pro').length).toBeGreaterThan(0);
     expect(screen.queryByText('Free')).not.toBeInTheDocument();
-    expect(screen.getByText('Pro')).toBeInTheDocument();
   });
 });

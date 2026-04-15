@@ -16,6 +16,11 @@ export interface AccountIdentityPresentation {
   inlineLabel: string | null;
 }
 
+export interface CodexIdentityBadge {
+  audience: AccountAudience;
+  label: string | null;
+}
+
 function normalizeVariantTokenPart(value: string): string {
   return value
     .trim()
@@ -217,6 +222,27 @@ export function formatAccountVariantLabel(
   tokenFile?: string
 ): string | null {
   return getAccountIdentityPresentation(accountId, email, tokenFile).inlineLabel;
+}
+
+export function getCodexIdentityBadge(
+  presentation: Pick<AccountIdentityPresentation, 'audience' | 'detailLabel' | 'compactDetailLabel'>
+): CodexIdentityBadge {
+  if (presentation.audience === 'business') {
+    return { audience: 'business', label: 'Business' };
+  }
+
+  if (presentation.audience === 'free') {
+    return { audience: 'free', label: 'Free' };
+  }
+
+  if (presentation.audience === 'personal') {
+    return {
+      audience: 'personal',
+      label: presentation.compactDetailLabel ?? presentation.detailLabel ?? 'Personal',
+    };
+  }
+
+  return { audience: 'unknown', label: null };
 }
 
 export function formatAccountDisplayName(
