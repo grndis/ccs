@@ -43,6 +43,7 @@ import {
   listProviderTokenSnapshots,
   registerAccountFromToken,
 } from '../../cliproxy/auth/token-manager';
+import { parseGitLabPatAuthResponse } from '../../cliproxy/auth/gitlab-pat-response';
 import {
   CLIPROXY_CALLBACK_PROVIDER_MAP,
   CLIPROXY_AUTH_URL_PROVIDER_MAP,
@@ -706,13 +707,16 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
         }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as {
-        status?: string;
-        error?: string;
-      };
-      if (!response.ok || data.status !== 'ok') {
+      const responseBody = await response.text();
+      const parsedResponse = parseGitLabPatAuthResponse(
+        response.ok,
+        response.status,
+        responseBody,
+        gitlabPersonalAccessToken
+      );
+      if (!parsedResponse.ok) {
         res.status(response.ok ? 400 : response.status).json({
-          error: data.error || 'GitLab PAT authentication failed',
+          error: parsedResponse.errorMessage || 'GitLab PAT authentication failed',
         });
         return;
       }

@@ -56,6 +56,7 @@ import {
 } from './token-manager';
 import { executeOAuthProcess } from './oauth-process';
 import { importKiroToken } from './kiro-import';
+import { parseGitLabPatAuthResponse } from './gitlab-pat-response';
 import {
   getProxyTarget,
   buildProxyUrl,
@@ -723,22 +724,16 @@ async function handleGitLabPatLogin(
     }),
   });
 
-  const responseBody = (await response.text()).trim();
-  let payload: Record<string, unknown> = {};
-  if (responseBody) {
-    try {
-      payload = JSON.parse(responseBody) as Record<string, unknown>;
-    } catch {
-      payload = { error: responseBody };
-    }
-  }
+  const responseBody = await response.text();
+  const parsedResponse = parseGitLabPatAuthResponse(
+    response.ok,
+    response.status,
+    responseBody,
+    token
+  );
 
-  if (!response.ok || payload.status !== 'ok') {
-    const errorMessage =
-      (typeof payload.error === 'string' && payload.error) ||
-      responseBody ||
-      `GitLab PAT login failed with status ${response.status}`;
-    console.log(fail(errorMessage));
+  if (!parsedResponse.ok) {
+    console.log(fail(parsedResponse.errorMessage));
     return null;
   }
 
