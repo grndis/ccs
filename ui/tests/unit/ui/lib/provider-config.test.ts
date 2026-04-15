@@ -50,15 +50,15 @@ describe('provider model mapping helpers', () => {
 
 describe('provider presentation metadata', () => {
   it.each([
-    ['cursor', 'Cursor', 'Cursor browser-authenticated provider', '/assets/providers/cursor.svg'],
+    ['cursor', 'Cursor', 'Cursor browser-authenticated provider', '/assets/sidebar/cursor.svg'],
     ['gitlab', 'GitLab Duo', 'GitLab Duo with OAuth or PAT auth', '/assets/providers/gitlab.svg'],
     [
       'codebuddy',
       'CodeBuddy (Tencent)',
       'Tencent CodeBuddy AI assistant',
-      '/assets/providers/codebuddy.svg',
+      '/assets/providers/codebuddy.png',
     ],
-    ['kilo', 'Kilo AI', 'Kilo AI coding assistant', '/assets/providers/kilo.svg'],
+    ['kilo', 'Kilo AI', 'Kilo AI coding assistant', '/assets/providers/kilo.png'],
   ])('recognizes %s across dashboard display helpers', (provider, name, description, asset) => {
     expect(getProviderDisplayName(provider)).toBe(name);
     expect(getProviderDescription(provider)).toBe(description);
