@@ -3,8 +3,8 @@ import { GlmtTransformer } from '../../glmt/glmt-transformer';
 import { SSEParser } from '../../glmt/sse-parser';
 import type { OpenAIResponse, SSEEvent } from '../../glmt/pipeline';
 
-const JSON_TRANSLATION_ERROR_MESSAGE = 'Failed to translate Cursor JSON response';
-const STREAM_TRANSLATION_ERROR_MESSAGE = 'Failed to translate Cursor SSE response';
+const JSON_TRANSLATION_ERROR_MESSAGE = 'Failed to translate OpenAI-compatible JSON response';
+const STREAM_TRANSLATION_ERROR_MESSAGE = 'Failed to translate OpenAI-compatible SSE response';
 
 type ResponseHeaders = Headers | Record<string, string> | Array<[string, string]>;
 
@@ -103,7 +103,7 @@ async function createAnthropicErrorProxyResponse(response: Response): Promise<Re
         : response.status >= 400 && response.status < 500
           ? 'invalid_request_error'
           : 'api_error';
-  let message = `Cursor request failed with status ${response.status}`;
+  let message = `Upstream request failed with status ${response.status}`;
 
   try {
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
@@ -145,7 +145,7 @@ async function createAnthropicJsonResponse(response: Response): Promise<Response
     const anthropicResponse = new GlmtTransformer().transformResponse(openAIResponse);
     if (isSyntheticTransformationFallback(anthropicResponse)) {
       logTranslationError(
-        'Cursor JSON translation produced synthetic fallback response',
+        'OpenAI-compatible JSON translation produced synthetic fallback response',
         anthropicResponse
       );
       return createAnthropicErrorResponse(502, 'api_error', JSON_TRANSLATION_ERROR_MESSAGE);
@@ -156,7 +156,7 @@ async function createAnthropicJsonResponse(response: Response): Promise<Response
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    logTranslationError('Cursor JSON translation failed', error);
+    logTranslationError('OpenAI-compatible JSON translation failed', error);
     return createAnthropicErrorResponse(502, 'api_error', JSON_TRANSLATION_ERROR_MESSAGE);
   }
 }
@@ -167,7 +167,7 @@ function createAnthropicStreamingResponse(response: Response): Response {
     return createAnthropicErrorResponse(
       502,
       'api_error',
-      'Cursor stream ended before a response body was available'
+      'Upstream stream ended before a response body was available'
     );
   }
 
@@ -209,7 +209,7 @@ function createAnthropicStreamingResponse(response: Response): Response {
           }
         }
       } catch (error) {
-        logTranslationError('Cursor SSE translation failed', error);
+        logTranslationError('OpenAI-compatible SSE translation failed', error);
         controller.enqueue(
           encoder.encode(
             formatSseEvent(

@@ -221,8 +221,6 @@ export async function handleProxyMessagesRequest(
         resolveOpenAIChatCompletionsUrl(upstream.route.profile.baseUrl),
         buildFetchInit(upstream.route.profile, upstream.body, controller.signal, insecureDispatcher)
       );
-      clearTimeout(timeout);
-      cleanupDisconnectHandlers();
       logger.info('response.received', 'Received upstream response', {
         profileName: profile.profileName,
         routedProfileName: upstream.route.profile.profileName,

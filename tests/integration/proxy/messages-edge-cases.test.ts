@@ -140,7 +140,7 @@ describe('openai proxy message edge cases', () => {
       type: 'error',
       error: {
         type: 'api_error',
-        message: 'Failed to translate Cursor JSON response',
+        message: 'Failed to translate OpenAI-compatible JSON response',
       },
     });
   });
@@ -200,6 +200,28 @@ describe('openai proxy message edge cases', () => {
         message: 'The upstream provider did not respond within 50ms',
       },
     });
+  });
+
+  it('emits an SSE error if the upstream stalls after response headers are sent', async () => {
+    process.env.CCS_OPENAI_PROXY_REQUEST_TIMEOUT_MS = '50';
+    await startProxyWithHandler((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(
+        'data: {"id":"chatcmpl_1","model":"hf-model","choices":[{"index":0,"delta":{"role":"assistant","content":"partial"}}]}\n\n'
+      );
+    });
+
+    const response = await requestProxy({
+      model: 'hf-model',
+      stream: true,
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('event: message_start');
+    expect(body).toContain('event: error');
+    expect(body).toContain('"message":"Failed to translate OpenAI-compatible SSE response"');
   });
 
   it('aborts the upstream request when the client disconnects mid-flight', async () => {
