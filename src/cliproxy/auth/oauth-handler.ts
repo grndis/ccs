@@ -98,8 +98,10 @@ export async function requestPasteCallbackStart(
       `Paste-callback start is not available for ${provider} with the selected method`
     );
   }
-  if (provider === 'gitlab' && options?.gitlabBaseUrl?.trim()) {
-    startPath += `&base_url=${encodeURIComponent(options.gitlabBaseUrl.trim())}`;
+  const normalizedGitLabBaseUrl =
+    provider === 'gitlab' ? normalizeGitLabBaseUrl(options?.gitlabBaseUrl) : undefined;
+  if (normalizedGitLabBaseUrl) {
+    startPath += `&base_url=${encodeURIComponent(normalizedGitLabBaseUrl)}`;
   }
   const response = await fetch(buildProxyUrl(target, startPath), {
     headers: buildManagementHeaders(target),
@@ -150,9 +152,30 @@ function parseAuthUrlState(url: string | null | undefined): string | null {
   }
 }
 
-function normalizeGitLabBaseUrl(baseUrl: string | undefined): string | undefined {
+export function normalizeGitLabBaseUrl(baseUrl: string | undefined): string | undefined {
   const normalized = baseUrl?.trim();
-  return normalized ? normalized : undefined;
+  if (!normalized) {
+    return undefined;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error('GitLab URL must be a valid http:// or https:// URL');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('GitLab URL must use http:// or https://');
+  }
+
+  parsed.hash = '';
+  parsed.search = '';
+  parsed.username = '';
+  parsed.password = '';
+
+  const normalizedPath = parsed.pathname.replace(/\/+$/, '');
+  return normalizedPath ? `${parsed.origin}${normalizedPath}` : parsed.origin;
 }
 
 export async function promptGitLabPersonalAccessToken(): Promise<string | null> {
@@ -786,8 +809,15 @@ export async function triggerOAuth(
     provider === 'kiro' ? normalizeKiroIDCFlow(options.kiroIDCFlow) : DEFAULT_KIRO_IDC_FLOW;
   const resolvedGitLabAuthMode =
     provider === 'gitlab' && options.gitlabAuthMode === 'pat' ? 'pat' : 'oauth';
-  const resolvedGitLabBaseUrl =
-    provider === 'gitlab' ? normalizeGitLabBaseUrl(options.gitlabBaseUrl) : undefined;
+  let resolvedGitLabBaseUrl: string | undefined;
+  if (provider === 'gitlab') {
+    try {
+      resolvedGitLabBaseUrl = normalizeGitLabBaseUrl(options.gitlabBaseUrl);
+    } catch (error) {
+      console.log(fail((error as Error).message));
+      return null;
+    }
+  }
 
   if (provider === 'agy') {
     if (fromUI && !acceptAgyRisk) {

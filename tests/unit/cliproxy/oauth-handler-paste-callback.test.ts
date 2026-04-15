@@ -262,3 +262,37 @@ describe('promptGitLabPersonalAccessToken', () => {
     expect(passwordSpy).toHaveBeenCalledWith('GitLab Personal Access Token');
   });
 });
+
+describe('normalizeGitLabBaseUrl', () => {
+  it('returns undefined for blank values', async () => {
+    const { normalizeGitLabBaseUrl } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?gitlab-url-empty=${Date.now()}`
+    );
+
+    expect(normalizeGitLabBaseUrl(undefined)).toBeUndefined();
+    expect(normalizeGitLabBaseUrl('   ')).toBeUndefined();
+  });
+
+  it('normalizes whitespace and trailing slashes for self-hosted URLs', async () => {
+    const { normalizeGitLabBaseUrl } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?gitlab-url-normalize=${Date.now()}`
+    );
+
+    expect(normalizeGitLabBaseUrl(' https://gitlab.example.com/custom/ ')).toBe(
+      'https://gitlab.example.com/custom'
+    );
+  });
+
+  it('rejects malformed or scheme-less URLs before hitting CLIProxy', async () => {
+    const { normalizeGitLabBaseUrl } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?gitlab-url-invalid=${Date.now()}`
+    );
+
+    expect(() => normalizeGitLabBaseUrl('gitlab.example.com')).toThrow(
+      'GitLab URL must be a valid http:// or https:// URL'
+    );
+    expect(() => normalizeGitLabBaseUrl('ftp://gitlab.example.com')).toThrow(
+      'GitLab URL must use http:// or https://'
+    );
+  });
+});
