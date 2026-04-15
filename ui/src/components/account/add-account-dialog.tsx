@@ -337,8 +337,11 @@ export function AddAccountDialog({
           ? gitlabPersonalAccessTokenTrimmed
           : undefined,
       flowType: isKiro ? selectedKiroFlowType : undefined,
-      startEndpoint:
-        isKiro ? selectedKiroStartEndpoint : isGitLab && gitlabAuthMode === 'pat' ? 'start' : undefined,
+      startEndpoint: isKiro
+        ? selectedKiroStartEndpoint
+        : isGitLab && gitlabAuthMode === 'pat'
+          ? 'start'
+          : undefined,
       riskAcknowledgement: requiresAgyResponsibilityFlow
         ? {
             version: ANTIGRAVITY_ACK_VERSION,
