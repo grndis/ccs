@@ -41,24 +41,38 @@ describe('provider-capabilities', () => {
       'ghcp',
       'claude',
       'kimi',
+      'cursor',
+      'gitlab',
+      'codebuddy',
+      'kilo',
     ]);
   });
 
   it('validates provider IDs', () => {
     expect(isCLIProxyProvider('gemini')).toBe(true);
     expect(isCLIProxyProvider('ghcp')).toBe(true);
+    expect(isCLIProxyProvider('gitlab')).toBe(true);
     expect(isCLIProxyProvider('not-a-provider')).toBe(false);
     expect(isCLIProxyProvider('Gemini')).toBe(false);
   });
 
   it('returns providers by OAuth flow capability', () => {
-    expect(getProvidersByOAuthFlow('device_code')).toEqual(['qwen', 'kiro', 'ghcp', 'kimi']);
+    expect(getProvidersByOAuthFlow('device_code')).toEqual([
+      'qwen',
+      'kiro',
+      'ghcp',
+      'kimi',
+      'cursor',
+      'codebuddy',
+      'kilo',
+    ]);
     expect(getProvidersByOAuthFlow('authorization_code')).toEqual([
       'gemini',
       'codex',
       'agy',
       'iflow',
       'claude',
+      'gitlab',
     ]);
   });
 
@@ -69,6 +83,8 @@ describe('provider-capabilities', () => {
     expect(mapExternalProviderName('github-copilot')).toBe('ghcp');
     expect(mapExternalProviderName('copilot')).toBe('ghcp');
     expect(mapExternalProviderName('anthropic')).toBe('claude');
+    expect(mapExternalProviderName('gitlab-duo')).toBe('gitlab');
+    expect(mapExternalProviderName('tencent')).toBe('codebuddy');
     expect(mapExternalProviderName('  COPILOT  ')).toBe('ghcp');
     expect(mapExternalProviderName('')).toBeNull();
     expect(mapExternalProviderName('unknown-provider')).toBeNull();
@@ -99,8 +115,11 @@ describe('provider-capabilities', () => {
   it('exposes callback port and display name capabilities', () => {
     expect(getOAuthCallbackPort('qwen')).toBeNull();
     expect(getOAuthCallbackPort('kiro')).toBeNull();
+    expect(getOAuthCallbackPort('cursor')).toBeNull();
+    expect(getOAuthCallbackPort('gitlab')).toBe(17171);
     expect(getOAuthCallbackPort('gemini')).toBe(8085);
     expect(getProviderDisplayName('agy')).toBe('Antigravity');
+    expect(getProviderDisplayName('kilo')).toBe('Kilo AI');
   });
 
   it('throws when provider aliases collide across providers', () => {

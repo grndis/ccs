@@ -83,15 +83,21 @@ const POLLED_AUTH_LOCAL_TOKEN_GRACE_MS = 15 * 1000;
 export async function requestPasteCallbackStart(
   provider: CLIProxyProvider,
   target: ProxyTarget,
-  options?: { kiroMethod?: OAuthOptions['kiroMethod'] }
+  options?: {
+    kiroMethod?: OAuthOptions['kiroMethod'];
+    gitlabBaseUrl?: OAuthOptions['gitlabBaseUrl'];
+  }
 ): Promise<PasteCallbackStartData> {
-  const startPath = getPasteCallbackStartPath(provider, {
+  let startPath = getPasteCallbackStartPath(provider, {
     kiroMethod: options?.kiroMethod,
   });
   if (!startPath) {
     throw new Error(
       `Paste-callback start is not available for ${provider} with the selected method`
     );
+  }
+  if (provider === 'gitlab' && options?.gitlabBaseUrl?.trim()) {
+    startPath += `&base_url=${encodeURIComponent(options.gitlabBaseUrl.trim())}`;
   }
   const response = await fetch(buildProxyUrl(target, startPath), {
     headers: buildManagementHeaders(target),
@@ -140,6 +146,27 @@ function parseAuthUrlState(url: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function normalizeGitLabBaseUrl(baseUrl: string | undefined): string | undefined {
+  const normalized = baseUrl?.trim();
+  return normalized ? normalized : undefined;
+}
+
+async function promptGitLabPersonalAccessToken(): Promise<string | null> {
+  const readline = await import('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise<string | null>((resolve) => {
+    rl.question('GitLab Personal Access Token: ', (answer) => {
+      rl.close();
+      const token = answer.trim();
+      resolve(token.length > 0 ? token : null);
+    });
+  });
 }
 
 export function findNewTokenSnapshotForManualAuth(
@@ -458,7 +485,10 @@ async function handlePasteCallbackMode(
   tokenDir: string,
   nickname?: string,
   expectedAccountId?: string,
-  options?: { kiroMethod?: OAuthOptions['kiroMethod'] }
+  options?: {
+    kiroMethod?: OAuthOptions['kiroMethod'];
+    gitlabBaseUrl?: OAuthOptions['gitlabBaseUrl'];
+  }
 ): Promise<AccountInfo | null> {
   // Resolve CLIProxyAPI target (local or remote based on config)
   const target = getProxyTarget();
@@ -647,6 +677,97 @@ async function handlePasteCallbackMode(
   }
 }
 
+async function handleGitLabPatLogin(
+  provider: CLIProxyProvider,
+  oauthConfig: ProviderOAuthConfig,
+  verbose: boolean,
+  tokenDir: string,
+  nickname?: string,
+  expectedAccountId?: string,
+  options?: {
+    gitlabBaseUrl?: OAuthOptions['gitlabBaseUrl'];
+    gitlabPersonalAccessToken?: OAuthOptions['gitlabPersonalAccessToken'];
+  }
+): Promise<AccountInfo | null> {
+  const target = getProxyTarget();
+  const baseUrl = normalizeGitLabBaseUrl(options?.gitlabBaseUrl);
+  const knownTokenFiles = listProviderTokenSnapshots(provider, tokenDir);
+  const suppliedToken = options?.gitlabPersonalAccessToken?.trim();
+  const personalAccessToken =
+    suppliedToken || process.env['GITLAB_PERSONAL_ACCESS_TOKEN']?.trim() || undefined;
+
+  let token = personalAccessToken;
+  if (!token) {
+    console.log('');
+    console.log(info(`Starting ${oauthConfig.displayName} PAT login...`));
+    console.log('Paste a Personal Access Token with api and read_user scopes.');
+    token = (await promptGitLabPersonalAccessToken()) || undefined;
+  }
+
+  if (!token) {
+    console.log(info('Cancelled'));
+    return null;
+  }
+
+  const response = await fetch(buildProxyUrl(target, '/v0/management/gitlab-auth-url'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildManagementHeaders(target),
+    },
+    body: JSON.stringify({
+      ...(baseUrl ? { base_url: baseUrl } : {}),
+      personal_access_token: token,
+    }),
+  });
+
+  const responseBody = (await response.text()).trim();
+  let payload: Record<string, unknown> = {};
+  if (responseBody) {
+    try {
+      payload = JSON.parse(responseBody) as Record<string, unknown>;
+    } catch {
+      payload = { error: responseBody };
+    }
+  }
+
+  if (!response.ok || payload.status !== 'ok') {
+    const errorMessage =
+      (typeof payload.error === 'string' && payload.error) ||
+      responseBody ||
+      `GitLab PAT login failed with status ${response.status}`;
+    console.log(fail(errorMessage));
+    return null;
+  }
+
+  const tokenSnapshot = findNewTokenSnapshotForAuthAttempt(
+    provider,
+    tokenDir,
+    knownTokenFiles,
+    expectedAccountId
+  );
+  if (!tokenSnapshot) {
+    console.log(fail('GitLab PAT login completed, but CCS could not find the saved token file.'));
+    return null;
+  }
+
+  const account = registerAccountFromToken(
+    provider,
+    tokenDir,
+    nickname,
+    verbose,
+    expectedAccountId || tokenSnapshot.file
+  );
+
+  if (!account) {
+    console.log(fail('Authenticated GitLab token could not be registered as a CCS account.'));
+    return null;
+  }
+
+  console.log(ok('Authentication successful!'));
+  return account;
+}
+
 /**
  * Trigger OAuth flow for provider
  * Auto-detects headless environment and uses --no-browser flag accordingly
@@ -666,6 +787,10 @@ export async function triggerOAuth(
     provider === 'kiro' ? normalizeKiroAuthMethod(options.kiroMethod) : DEFAULT_KIRO_AUTH_METHOD;
   const resolvedKiroIDCFlow =
     provider === 'kiro' ? normalizeKiroIDCFlow(options.kiroIDCFlow) : DEFAULT_KIRO_IDC_FLOW;
+  const resolvedGitLabAuthMode =
+    provider === 'gitlab' && options.gitlabAuthMode === 'pat' ? 'pat' : 'oauth';
+  const resolvedGitLabBaseUrl =
+    provider === 'gitlab' ? normalizeGitLabBaseUrl(options.gitlabBaseUrl) : undefined;
 
   if (provider === 'agy') {
     if (fromUI && !acceptAgyRisk) {
@@ -744,6 +869,14 @@ export async function triggerOAuth(
     }
   }
 
+  if (provider === 'gitlab' && resolvedGitLabBaseUrl && !selectedPasteCallback) {
+    selectedPasteCallback = true;
+    console.log('');
+    console.log(
+      info('GitLab custom base URL selected. Switching to paste-callback mode for OAuth.')
+    );
+  }
+
   const useSelectedKiroLocalPasteCallback =
     selectedPasteCallback &&
     provider === 'kiro' &&
@@ -765,6 +898,22 @@ export async function triggerOAuth(
     }
   }
 
+  if (provider === 'gitlab' && resolvedGitLabAuthMode === 'pat') {
+    const tokenDir = getProviderTokenDir(provider);
+    return handleGitLabPatLogin(
+      provider,
+      oauthConfig,
+      verbose,
+      tokenDir,
+      nickname,
+      existingNameMatch?.id,
+      {
+        gitlabBaseUrl: resolvedGitLabBaseUrl,
+        gitlabPersonalAccessToken: options.gitlabPersonalAccessToken,
+      }
+    );
+  }
+
   if (selectedPasteCallback && !useSelectedKiroDirectCliFlow) {
     const tokenDir = getProviderTokenDir(provider);
     return handlePasteCallbackMode(
@@ -774,7 +923,10 @@ export async function triggerOAuth(
       tokenDir,
       nickname,
       existingNameMatch?.id,
-      { kiroMethod: provider === 'kiro' ? resolvedKiroMethod : undefined }
+      {
+        kiroMethod: provider === 'kiro' ? resolvedKiroMethod : undefined,
+        gitlabBaseUrl: provider === 'gitlab' ? resolvedGitLabBaseUrl : undefined,
+      }
     );
   }
 

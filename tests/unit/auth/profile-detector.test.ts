@@ -93,6 +93,12 @@ describe('ProfileDetector', () => {
       expect(result.provider).toBe('gemini');
     });
 
+    it('should detect newly added cliproxy providers', () => {
+      expect(detector.detectProfileType('gitlab').provider).toBe('gitlab');
+      expect(detector.detectProfileType('codebuddy').provider).toBe('codebuddy');
+      expect(detector.detectProfileType('kilo').provider).toBe('kilo');
+    });
+
     it('should detect settings-based profile from unified config', () => {
       const settingsPath = path.join(tempDir, 'glm.settings.json');
       fs.writeFileSync(settingsPath, JSON.stringify({ env: { ANTHROPIC_MODEL: 'glm-4' } }));

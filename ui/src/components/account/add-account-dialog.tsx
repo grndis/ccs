@@ -91,6 +91,9 @@ export function AddAccountDialog({
   const [kiroIDCStartUrl, setKiroIDCStartUrl] = useState('');
   const [kiroIDCRegion, setKiroIDCRegion] = useState('');
   const [kiroIDCFlow, setKiroIDCFlow] = useState<KiroIDCFlow>(DEFAULT_KIRO_IDC_FLOW);
+  const [gitlabAuthMode, setGitlabAuthMode] = useState<'oauth' | 'pat'>('oauth');
+  const [gitlabBaseUrl, setGitlabBaseUrl] = useState('');
+  const [gitlabPersonalAccessToken, setGitlabPersonalAccessToken] = useState('');
   const { t } = useTranslation();
   const wasAuthenticatingRef = useRef(false);
   const powerUserModeRequestIdRef = useRef(0);
@@ -99,6 +102,7 @@ export function AddAccountDialog({
   const kiroImportMutation = useKiroImport();
 
   const isKiro = provider === 'kiro';
+  const isGitLab = provider === 'gitlab';
   const supportsPowerUserMode = provider === 'agy' || provider === 'gemini';
   const requiresGeminiSafetyAcknowledgement = provider === 'gemini' && !powerUserModeEnabled;
   const requiresAgyResponsibilityFlow = provider === 'agy' && !powerUserModeEnabled;
@@ -120,6 +124,8 @@ export function AddAccountDialog({
   const nicknameTrimmed = nickname.trim();
   const kiroIDCStartUrlTrimmed = kiroIDCStartUrl.trim();
   const kiroIDCRegionTrimmed = kiroIDCRegion.trim();
+  const gitlabBaseUrlTrimmed = gitlabBaseUrl.trim();
+  const gitlabPersonalAccessTokenTrimmed = gitlabPersonalAccessToken.trim();
   const errorMessage = localError || authFlow.error;
 
   const fetchPowerUserModeState = useCallback(async (): Promise<boolean> => {
@@ -191,6 +197,9 @@ export function AddAccountDialog({
     setKiroIDCStartUrl('');
     setKiroIDCRegion('');
     setKiroIDCFlow(DEFAULT_KIRO_IDC_FLOW);
+    setGitlabAuthMode('oauth');
+    setGitlabBaseUrl('');
+    setGitlabPersonalAccessToken('');
     powerUserModeRequestIdRef.current += 1;
     powerUserModeLoadErrorShownRef.current = false;
     wasAuthenticatingRef.current = false;
@@ -310,6 +319,10 @@ export function AddAccountDialog({
       setLocalError('IDC Start URL is required for Kiro IAM Identity Center login.');
       return;
     }
+    if (isGitLab && gitlabAuthMode === 'pat' && !gitlabPersonalAccessTokenTrimmed) {
+      setLocalError('GitLab Personal Access Token is required for PAT login.');
+      return;
+    }
     wasAuthenticatingRef.current = true;
     authFlow.startAuth(provider, {
       nickname: nicknameTrimmed || undefined,
@@ -317,8 +330,15 @@ export function AddAccountDialog({
       kiroIDCStartUrl: isKiroIdc ? kiroIDCStartUrlTrimmed : undefined,
       kiroIDCRegion: isKiroIdc && kiroIDCRegionTrimmed ? kiroIDCRegionTrimmed : undefined,
       kiroIDCFlow: isKiroIdc ? kiroIDCFlow : undefined,
+      gitlabAuthMode: isGitLab ? gitlabAuthMode : undefined,
+      gitlabBaseUrl: isGitLab && gitlabBaseUrlTrimmed ? gitlabBaseUrlTrimmed : undefined,
+      gitlabPersonalAccessToken:
+        isGitLab && gitlabAuthMode === 'pat' && gitlabPersonalAccessTokenTrimmed
+          ? gitlabPersonalAccessTokenTrimmed
+          : undefined,
       flowType: isKiro ? selectedKiroFlowType : undefined,
-      startEndpoint: isKiro ? selectedKiroStartEndpoint : undefined,
+      startEndpoint:
+        isKiro ? selectedKiroStartEndpoint : isGitLab && gitlabAuthMode === 'pat' ? 'start' : undefined,
       riskAcknowledgement: requiresAgyResponsibilityFlow
         ? {
             version: ANTIGRAVITY_ACK_VERSION,
@@ -509,6 +529,70 @@ export function AddAccountDialog({
                   callback URL pasted back. Device Code shows a verification code instead.
                 </p>
               </div>
+            </div>
+          )}
+
+          {isGitLab && !showAuthUI && (
+            <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+              <div className="space-y-2">
+                <Label htmlFor="gitlab-auth-mode">GitLab auth method</Label>
+                <Select
+                  value={gitlabAuthMode}
+                  onValueChange={(value) => {
+                    setGitlabAuthMode(value as 'oauth' | 'pat');
+                    setLocalError(null);
+                  }}
+                >
+                  <SelectTrigger id="gitlab-auth-mode">
+                    <SelectValue placeholder="Select GitLab auth method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="oauth">Browser OAuth</SelectItem>
+                    <SelectItem value="pat">Personal Access Token</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Use Browser OAuth for gitlab.com, or PAT for self-hosted and admin-managed setups.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gitlab-base-url">GitLab URL</Label>
+                <Input
+                  id="gitlab-base-url"
+                  value={gitlabBaseUrl}
+                  onChange={(e) => {
+                    setGitlabBaseUrl(e.target.value);
+                    setLocalError(null);
+                  }}
+                  placeholder="https://gitlab.com"
+                  disabled={isPending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional. Leave blank for gitlab.com, or set your self-hosted GitLab base URL.
+                </p>
+              </div>
+
+              {gitlabAuthMode === 'pat' && (
+                <div className="space-y-2">
+                  <Label htmlFor="gitlab-pat">Personal Access Token</Label>
+                  <Input
+                    id="gitlab-pat"
+                    type="password"
+                    value={gitlabPersonalAccessToken}
+                    onChange={(e) => {
+                      setGitlabPersonalAccessToken(e.target.value);
+                      setLocalError(null);
+                    }}
+                    placeholder="glpat-..."
+                    disabled={isPending}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Token must include at least <span className="font-mono">api</span> and{' '}
+                    <span className="font-mono">read_user</span> scopes.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

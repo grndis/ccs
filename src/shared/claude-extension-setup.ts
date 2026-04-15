@@ -121,7 +121,7 @@ export function listClaudeExtensionProfiles(): ClaudeExtensionProfileOption[] {
     'default',
     ...all.accounts,
     ...all.settings,
-    ...all.cliproxy,
+    ...all.cliproxy.filter((profileName) => profileName !== 'cursor'),
     ...all.cliproxyVariants,
   ];
   const deduped = [...new Set(orderedNames)];

@@ -30,6 +30,9 @@ interface StartAuthOptions {
   kiroIDCStartUrl?: string;
   kiroIDCRegion?: string;
   kiroIDCFlow?: 'authcode' | 'device';
+  gitlabAuthMode?: 'oauth' | 'pat';
+  gitlabBaseUrl?: string;
+  gitlabPersonalAccessToken?: string;
   flowType?: 'authorization_code' | 'device_code';
   startEndpoint?: 'start' | 'start-url';
   riskAcknowledgement?: {
@@ -272,6 +275,9 @@ export function useCliproxyAuthFlow() {
         kiroIDCStartUrl: options?.kiroIDCStartUrl,
         kiroIDCRegion: options?.kiroIDCRegion,
         kiroIDCFlow: options?.kiroIDCFlow,
+        gitlabAuthMode: options?.gitlabAuthMode,
+        gitlabBaseUrl: options?.gitlabBaseUrl,
+        gitlabPersonalAccessToken: options?.gitlabPersonalAccessToken,
         riskAcknowledgement: options?.riskAcknowledgement,
       };
 

@@ -13,6 +13,15 @@ describe('cliproxy-auth-routes start-url guard', () => {
     );
     expect(getStartUrlUnsupportedReason('ghcp')).toContain("Provider 'ghcp' uses Device Code flow");
     expect(getStartUrlUnsupportedReason('qwen')).toContain("Provider 'qwen' uses Device Code flow");
+    expect(getStartUrlUnsupportedReason('cursor')).toContain(
+      "Provider 'cursor' uses Device Code flow"
+    );
+    expect(getStartUrlUnsupportedReason('codebuddy')).toContain(
+      "Provider 'codebuddy' uses Device Code flow"
+    );
+    expect(getStartUrlUnsupportedReason('kilo')).toContain(
+      "Provider 'kilo' uses Device Code flow"
+    );
   });
 
   it('allows Kiro social methods on start-url', () => {
@@ -36,6 +45,7 @@ describe('cliproxy-auth-routes start-url guard', () => {
     expect(getStartUrlUnsupportedReason('gemini')).toBeNull();
     expect(getStartUrlUnsupportedReason('codex')).toBeNull();
     expect(getStartUrlUnsupportedReason('claude')).toBeNull();
+    expect(getStartUrlUnsupportedReason('gitlab')).toBeNull();
   });
 });
 
@@ -87,6 +97,7 @@ describe('cliproxy-auth-routes start failure messaging', () => {
   it('keeps generic failure text for other providers', () => {
     expect(getStartAuthFailureMessage('gemini')).toBe('Authentication failed or was cancelled');
     expect(getStartAuthFailureMessage('kiro')).toBe('Authentication failed or was cancelled');
+    expect(getStartAuthFailureMessage('gitlab')).toBe('Authentication failed or was cancelled');
   });
 });
 

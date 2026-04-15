@@ -307,6 +307,56 @@ describe('useCliproxyAuthFlow', () => {
       kiroIDCStartUrl: 'https://d-123.awsapps.com/start',
       kiroIDCRegion: 'ca-central-1',
       kiroIDCFlow: 'authcode',
+      gitlabAuthMode: undefined,
+      gitlabBaseUrl: undefined,
+      gitlabPersonalAccessToken: undefined,
+      riskAcknowledgement: undefined,
+    });
+  });
+
+  it('forwards GitLab PAT options to the backend start endpoint payload', async () => {
+    let requestBody: Record<string, unknown> | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.includes('/start')) {
+          requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return createJsonResponse({
+            success: true,
+            account: {
+              id: 'gitlab-account',
+              provider: 'gitlab',
+            },
+          });
+        }
+
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      })
+    );
+
+    const { result } = renderHook(() => useCliproxyAuthFlow(), { wrapper });
+
+    await act(async () => {
+      await result.current.startAuth('gitlab', {
+        startEndpoint: 'start',
+        gitlabAuthMode: 'pat',
+        gitlabBaseUrl: 'https://gitlab.example.com',
+        gitlabPersonalAccessToken: 'glpat-test-token',
+      });
+    });
+
+    expect(requestBody).toEqual({
+      nickname: undefined,
+      kiroMethod: undefined,
+      kiroIDCStartUrl: undefined,
+      kiroIDCRegion: undefined,
+      kiroIDCFlow: undefined,
+      gitlabAuthMode: 'pat',
+      gitlabBaseUrl: 'https://gitlab.example.com',
+      gitlabPersonalAccessToken: 'glpat-test-token',
       riskAcknowledgement: undefined,
     });
   });

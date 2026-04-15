@@ -353,6 +353,7 @@ export async function execClaudeWithCLIProxy(
   const addAccount = argsWithoutProxy.includes('--add');
   const showAccounts = argsWithoutProxy.includes('--accounts');
   const forceImport = argsWithoutProxy.includes('--import');
+  const gitlabTokenLogin = argsWithoutProxy.includes('--token-login');
   const acceptAgyRisk = hasAntigravityRiskAcceptanceFlag(argsWithoutProxy);
 
   const incognitoFlag = argsWithoutProxy.includes('--incognito');
@@ -444,6 +445,16 @@ export async function execClaudeWithCLIProxy(
     kiroIDCFlow = normalizeKiroIDCFlow(normalized);
   }
 
+  let gitlabBaseUrl: string | undefined;
+  const gitlabBaseUrlValue = readOptionValue(argsWithoutProxy, '--gitlab-url');
+  if (gitlabBaseUrlValue.present && gitlabBaseUrlValue.value) {
+    gitlabBaseUrl = gitlabBaseUrlValue.value.trim();
+  } else if (gitlabBaseUrlValue.present) {
+    console.error(fail('--gitlab-url requires a value'));
+    process.exitCode = 1;
+    return;
+  }
+
   if (kiroAuthMethod && provider !== 'kiro' && !compositeProviders.includes('kiro')) {
     console.error(fail('--kiro-auth-method is only valid for ccs kiro'));
     process.exitCode = 1;
@@ -487,6 +498,13 @@ export async function execClaudeWithCLIProxy(
         '--kiro-idc-start-url, --kiro-idc-region, and --kiro-idc-flow require --kiro-auth-method idc'
       )
     );
+    process.exitCode = 1;
+    return;
+  }
+
+  if ((gitlabTokenLogin || gitlabBaseUrl) && provider !== 'gitlab') {
+    const flagName = gitlabTokenLogin ? '--token-login' : '--gitlab-url';
+    console.error(fail(`${flagName} is only valid for ccs gitlab`));
     process.exitCode = 1;
     return;
   }
@@ -730,6 +748,8 @@ export async function execClaudeWithCLIProxy(
             ...(kiroIDCStartUrl && p === 'kiro' ? { kiroIDCStartUrl } : {}),
             ...(kiroIDCRegion && p === 'kiro' ? { kiroIDCRegion } : {}),
             ...(kiroIDCFlow && p === 'kiro' ? { kiroIDCFlow } : {}),
+            ...(gitlabTokenLogin && p === 'gitlab' ? { gitlabAuthMode: 'pat' as const } : {}),
+            ...(gitlabBaseUrl && p === 'gitlab' ? { gitlabBaseUrl } : {}),
             ...(forceHeadless ? { headless: true } : {}),
             ...(setNickname ? { nickname: setNickname } : {}),
             ...(noIncognito ? { noIncognito: true } : {}),
@@ -775,6 +795,8 @@ export async function execClaudeWithCLIProxy(
         ...(kiroIDCStartUrl ? { kiroIDCStartUrl } : {}),
         ...(kiroIDCRegion ? { kiroIDCRegion } : {}),
         ...(kiroIDCFlow ? { kiroIDCFlow } : {}),
+        ...(gitlabTokenLogin ? { gitlabAuthMode: 'pat' as const } : {}),
+        ...(gitlabBaseUrl ? { gitlabBaseUrl } : {}),
         ...(forceHeadless ? { headless: true } : {}),
         ...(setNickname ? { nickname: setNickname } : {}),
         ...(noIncognito ? { noIncognito: true } : {}),

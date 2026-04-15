@@ -9,6 +9,13 @@ export const RESERVED_PROFILE_NAMES = [
   'agy',
   'qwen',
   'iflow',
+  'kiro',
+  'ghcp',
+  'claude',
+  'kimi',
+  'gitlab',
+  'codebuddy',
+  'kilo',
   // Copilot API (GitHub Copilot proxy)
   'copilot',
   // Cursor IDE (Cursor proxy daemon)

@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatRequestedUpstreamModelRules,
+  getProviderDescription,
+  getProviderDisplayName,
+  getProviderFallbackVisual,
+  getProviderLogoAsset,
   getRequestedUpstreamModelRuleErrors,
   getRequestedModelId,
   parseRequestedUpstreamModelRules,
+  PROVIDER_COLORS,
 } from '@/lib/provider-config';
 
 describe('provider model mapping helpers', () => {
@@ -40,5 +45,47 @@ describe('provider model mapping helpers', () => {
       'Line 1: use requested=upstream or a plain model name.',
       'Line 2: use requested=upstream or a plain model name.',
     ]);
+  });
+});
+
+describe('provider presentation metadata', () => {
+  it.each([
+    ['cursor', 'Cursor', 'Cursor browser-authenticated provider', '/assets/providers/cursor.svg'],
+    ['gitlab', 'GitLab Duo', 'GitLab Duo with OAuth or PAT auth', '/assets/providers/gitlab.svg'],
+    [
+      'codebuddy',
+      'CodeBuddy (Tencent)',
+      'Tencent CodeBuddy AI assistant',
+      '/assets/providers/codebuddy.svg',
+    ],
+    ['kilo', 'Kilo AI', 'Kilo AI coding assistant', '/assets/providers/kilo.svg'],
+  ])('recognizes %s across dashboard display helpers', (provider, name, description, asset) => {
+    expect(getProviderDisplayName(provider)).toBe(name);
+    expect(getProviderDescription(provider)).toBe(description);
+    expect(getProviderLogoAsset(provider)).toBe(asset);
+  });
+
+  it('provides fallback visuals and brand colors for new providers', () => {
+    expect(getProviderFallbackVisual('cursor')).toEqual({
+      textClass: 'text-slate-900',
+      letter: 'C',
+    });
+    expect(getProviderFallbackVisual('gitlab')).toEqual({
+      textClass: 'text-orange-600',
+      letter: 'G',
+    });
+    expect(getProviderFallbackVisual('codebuddy')).toEqual({
+      textClass: 'text-blue-600',
+      letter: 'B',
+    });
+    expect(getProviderFallbackVisual('kilo')).toEqual({
+      textClass: 'text-rose-600',
+      letter: 'K',
+    });
+
+    expect(PROVIDER_COLORS.cursor).toBe('#111827');
+    expect(PROVIDER_COLORS.gitlab).toBe('#FC6D26');
+    expect(PROVIDER_COLORS.codebuddy).toBe('#2563EB');
+    expect(PROVIDER_COLORS.kilo).toBe('#E11D48');
   });
 });

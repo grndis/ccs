@@ -59,6 +59,22 @@ describe('AddAccountDialog power user mode', () => {
     vi.clearAllMocks();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
+    Object.defineProperty(HTMLElement.prototype, 'hasPointerCapture', {
+      configurable: true,
+      value: () => false,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
+      configurable: true,
+      value: () => {},
+    });
+    Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
+      configurable: true,
+      value: () => {},
+    });
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: () => {},
+    });
   });
 
   afterEach(() => {
@@ -167,5 +183,27 @@ describe('AddAccountDialog power user mode', () => {
     expect(screen.getByText(/Step 1: I reviewed issue #509/i)).toBeInTheDocument();
     expect(screen.queryByText('Power user mode enabled')).not.toBeInTheDocument();
     expect(authMocks.startAuth).not.toHaveBeenCalled();
+  });
+
+  it('submits GitLab PAT mode with base URL and token through the shared auth hook', async () => {
+    render(<AddAccountDialog open onClose={vi.fn()} provider="gitlab" displayName="GitLab Duo" />);
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'GitLab auth method' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Personal Access Token' }));
+
+    await userEvent.type(screen.getByLabelText('GitLab URL'), 'https://gitlab.example.com');
+    await userEvent.type(screen.getByLabelText('Personal Access Token'), 'glpat-test-token');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Authenticate' }));
+
+    expect(authMocks.startAuth).toHaveBeenCalledWith(
+      'gitlab',
+      expect.objectContaining({
+        gitlabAuthMode: 'pat',
+        gitlabBaseUrl: 'https://gitlab.example.com',
+        gitlabPersonalAccessToken: 'glpat-test-token',
+        startEndpoint: 'start',
+      })
+    );
   });
 });

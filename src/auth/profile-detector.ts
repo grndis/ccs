@@ -253,9 +253,8 @@ class ProfileDetector {
    * Detect profile type and return routing information
    *
    * Priority order:
-   * 0. Hardcoded CLIProxy profiles (gemini, codex, agy, qwen)
-   * 0.5. Copilot profile (if enabled in config)
-   * 0.75. Cursor profile (if enabled in config)
+   * 0. Hardcoded special runtime profiles (copilot, cursor)
+   * 0.5. Hardcoded CLIProxy profiles (gemini, codex, agy, qwen, ...)
    * 1. Unified config profiles (if config.yaml exists or CCS_UNIFIED_CONFIG=1)
    * 2. User-defined CLIProxy variants (config.cliproxy section) [legacy]
    * 3. Settings-based profiles (config.profiles section) [legacy]
@@ -267,16 +266,7 @@ class ProfileDetector {
       return this.resolveDefaultProfile();
     }
 
-    // Priority 0: Check CLIProxy profiles (gemini, codex, agy, qwen) - OAuth-based, zero config
-    if (isCLIProxyProvider(profileName)) {
-      return {
-        type: 'cliproxy',
-        name: profileName,
-        provider: profileName,
-      };
-    }
-
-    // Priority 0.5: Check Copilot profile - GitHub Copilot subscription via copilot-api
+    // Priority 0: Check Copilot profile - GitHub Copilot subscription via copilot-api
     if (profileName === 'copilot') {
       const unifiedConfig = this.readUnifiedConfig();
       const copilotConfig = unifiedConfig?.copilot;
@@ -306,7 +296,10 @@ class ProfileDetector {
       };
     }
 
-    // Priority 0.75: Check Cursor profile - local Cursor daemon runtime
+    // Priority 0.25: Check Cursor profile - local Cursor daemon runtime.
+    // This keeps bare `ccs cursor` and `ccs cursor <subcommand>` bound to the
+    // existing runtime/admin surface even though CLIProxy also exposes a
+    // distinct provider named "cursor".
     if (profileName === 'cursor') {
       const cursorConfig = getCursorConfig();
 
@@ -331,6 +324,15 @@ class ProfileDetector {
         type: 'cursor',
         name: 'cursor',
         cursorConfig,
+      };
+    }
+
+    // Priority 0.5: Check CLIProxy profiles (gemini, codex, agy, qwen, ...)
+    if (isCLIProxyProvider(profileName)) {
+      return {
+        type: 'cliproxy',
+        name: profileName,
+        provider: profileName,
       };
     }
 

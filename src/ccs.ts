@@ -77,6 +77,7 @@ import { isDeprecatedGlmtProfileName, normalizeDeprecatedGlmtEnv } from './utils
 import { maybeWarnAboutResumeLaneMismatch } from './auth/resume-lane-warning';
 import { createLogger } from './services/logging';
 import { buildCodexBrowserMcpOverrides } from './utils/browser-codex-overrides';
+import type { ProfileDetectionResult } from './auth/profile-detector';
 
 // Import target adapter system
 import {
@@ -122,6 +123,7 @@ interface RuntimeReasoningResolution {
   sourceDisplay: string | undefined;
 }
 
+const CURSOR_CLIPROXY_SHORTCUT_FLAGS = new Set(['--auth', '--logout', '--config', '--accounts']);
 const CODEX_RUNTIME_REASONING_LEVELS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
 const CODEX_NATIVE_PASSTHROUGH_FLAGS = new Set(['--help', '-h', '--version', '-v']);
 
@@ -145,6 +147,13 @@ function detectProfile(args: string[]): DetectedProfile {
     // First arg doesn't start with '-' → treat as profile name
     return { profile: args[0], remainingArgs: args.slice(1) };
   }
+}
+
+function shouldUseCursorCliproxyShortcut(args: string[]): boolean {
+  return (
+    args[0] === 'cursor' &&
+    args.some((arg, index) => index > 0 && CURSOR_CLIPROXY_SHORTCUT_FLAGS.has(arg))
+  );
 }
 
 function resolveRuntimeReasoningFlags(
@@ -537,8 +546,17 @@ async function main(): Promise<void> {
   try {
     // Detect profile (strip --target flags before profile detection)
     const cleanArgs = stripTargetFlag(args);
-    const { profile, remainingArgs } = detectProfile(cleanArgs);
-    const profileInfo = detector.detectProfileType(profile);
+    const useCursorCliproxyShortcut = shouldUseCursorCliproxyShortcut(cleanArgs);
+    const { profile, remainingArgs } = useCursorCliproxyShortcut
+      ? { profile: 'cursor', remainingArgs: cleanArgs.slice(1) }
+      : detectProfile(cleanArgs);
+    const profileInfo: ProfileDetectionResult = useCursorCliproxyShortcut
+      ? {
+          type: 'cliproxy',
+          name: 'cursor',
+          provider: 'cursor',
+        }
+      : detector.detectProfileType(profile);
     let resolvedTarget: ReturnType<typeof resolveTargetType>;
     try {
       resolvedTarget = resolveTargetType(

@@ -50,6 +50,9 @@ describe('help command parity', () => {
     expect(rendered.includes('gemini')).toBe(true);
     expect(rendered.includes('codex')).toBe(true);
     expect(rendered.includes('ghcp')).toBe(true);
+    expect(rendered.includes('gitlab')).toBe(true);
+    expect(rendered.includes('codebuddy')).toBe(true);
+    expect(rendered.includes('kilo')).toBe(true);
   });
 
   test('kiro topic documents IDC and callback flags', async () => {

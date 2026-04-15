@@ -229,6 +229,20 @@ function parseKiroIDCFlow(raw: unknown): { flow: KiroIDCFlow; invalid: boolean }
   return { flow: normalizeKiroIDCFlow(normalized), invalid: false };
 }
 
+function parseGitLabAuthMode(raw: unknown): { mode: 'oauth' | 'pat'; invalid: boolean } {
+  if (raw === undefined || raw === null || raw === '') {
+    return { mode: 'oauth', invalid: false };
+  }
+  if (typeof raw !== 'string') {
+    return { mode: 'oauth', invalid: true };
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'oauth' || normalized === 'pat') {
+    return { mode: normalized, invalid: false };
+  }
+  return { mode: 'oauth', invalid: true };
+}
+
 export function getKiroStartIDCValidationError(options: {
   kiroMethod: KiroAuthMethod;
   kiroIDCStartUrl?: string;
@@ -603,6 +617,13 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
   const kiroIDCRegion =
     typeof requestBody.kiroIDCRegion === 'string' ? requestBody.kiroIDCRegion.trim() : undefined;
   const kiroIDCFlowRaw = requestBody.kiroIDCFlow;
+  const gitlabAuthModeRaw = requestBody.gitlabAuthMode;
+  const gitlabBaseUrl =
+    typeof requestBody.gitlabBaseUrl === 'string' ? requestBody.gitlabBaseUrl.trim() : undefined;
+  const gitlabPersonalAccessToken =
+    typeof requestBody.gitlabPersonalAccessToken === 'string'
+      ? requestBody.gitlabPersonalAccessToken.trim()
+      : undefined;
   const riskAcknowledgement = requestBody.riskAcknowledgement;
   const target = getProxyTarget();
   if (target.isRemote) {
@@ -613,6 +634,8 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
   const nickname = nicknameRaw?.trim();
   const { method: kiroMethod, invalid: invalidKiroMethod } = parseKiroMethod(kiroMethodRaw);
   const { flow: kiroIDCFlow, invalid: invalidKiroIDCFlow } = parseKiroIDCFlow(kiroIDCFlowRaw);
+  const { mode: gitlabAuthMode, invalid: invalidGitLabAuthMode } =
+    parseGitLabAuthMode(gitlabAuthModeRaw);
 
   // Validate provider
   if (!validProviders.includes(provider as CLIProxyProvider)) {
@@ -624,6 +647,14 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
     res.status(400).json({
       error: 'Invalid kiroMethod. Supported: aws, aws-authcode, google, github, idc',
       code: 'INVALID_KIRO_METHOD',
+    });
+    return;
+  }
+
+  if (provider === 'gitlab' && invalidGitLabAuthMode) {
+    res.status(400).json({
+      error: 'Invalid gitlabAuthMode. Supported: oauth, pat',
+      code: 'INVALID_GITLAB_AUTH_MODE',
     });
     return;
   }
@@ -647,6 +678,89 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
         error: validation.error,
         code: 'AGY_RISK_ACK_REQUIRED',
       });
+      return;
+    }
+  }
+
+  if (provider === 'gitlab' && gitlabAuthMode === 'pat') {
+    if (!gitlabPersonalAccessToken) {
+      res.status(400).json({
+        error: 'gitlabPersonalAccessToken is required when gitlabAuthMode=pat',
+        code: 'MISSING_GITLAB_PAT',
+      });
+      return;
+    }
+
+    try {
+      const localProvider = provider as CLIProxyProvider;
+      const knownTokenFiles = listProviderTokenSnapshots(localProvider);
+      const response = await fetch(buildProxyUrl(target, '/v0/management/gitlab-auth-url'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildManagementHeaders(target),
+        },
+        body: JSON.stringify({
+          ...(gitlabBaseUrl ? { base_url: gitlabBaseUrl } : {}),
+          personal_access_token: gitlabPersonalAccessToken,
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as {
+        status?: string;
+        error?: string;
+      };
+      if (!response.ok || data.status !== 'ok') {
+        res.status(response.ok ? 400 : response.status).json({
+          error: data.error || 'GitLab PAT authentication failed',
+        });
+        return;
+      }
+
+      const tokenSnapshot = findNewTokenSnapshot(
+        listProviderTokenSnapshots(localProvider),
+        knownTokenFiles
+      );
+      if (!tokenSnapshot) {
+        res.status(409).json({
+          error: 'GitLab PAT authentication completed, but CCS could not find the saved token.',
+        });
+        return;
+      }
+
+      const account = registerAccountFromToken(
+        localProvider,
+        getProviderTokenDir(localProvider),
+        nickname,
+        false,
+        tokenSnapshot.file
+      );
+      if (!account) {
+        res.status(409).json({
+          error: 'GitLab PAT authentication succeeded, but account registration failed.',
+        });
+        return;
+      }
+
+      try {
+        await ensureManagedModelPrefixes([account.provider]);
+      } catch {
+        // Keep auth success path non-fatal when prefix repair cannot run.
+      }
+
+      res.json({
+        success: true,
+        account: {
+          id: account.id,
+          email: account.email,
+          nickname: account.nickname,
+          provider: account.provider,
+          isDefault: account.isDefault,
+        },
+      });
+      return;
+    } catch (error) {
+      respondInternalError(res, error, 'Failed to start GitLab PAT flow.');
       return;
     }
   }
@@ -681,6 +795,8 @@ router.post('/:provider/start', async (req: Request, res: Response): Promise<voi
       kiroIDCStartUrl: provider === 'kiro' ? kiroIDCStartUrl : undefined,
       kiroIDCRegion: provider === 'kiro' ? kiroIDCRegion : undefined,
       kiroIDCFlow: provider === 'kiro' && kiroMethod === 'idc' ? kiroIDCFlow : undefined,
+      gitlabAuthMode: provider === 'gitlab' ? gitlabAuthMode : undefined,
+      gitlabBaseUrl: provider === 'gitlab' ? gitlabBaseUrl : undefined,
       fromUI: true, // Enable project selection prompt in UI
       noIncognito, // Kiro: use normal browser if enabled
     });
@@ -837,9 +953,14 @@ router.post('/:provider/start-url', async (req: Request, res: Response): Promise
     req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
   const nicknameRaw = typeof requestBody.nickname === 'string' ? requestBody.nickname : undefined;
   const kiroMethodRaw = requestBody.kiroMethod;
+  const gitlabAuthModeRaw = requestBody.gitlabAuthMode;
+  const gitlabBaseUrl =
+    typeof requestBody.gitlabBaseUrl === 'string' ? requestBody.gitlabBaseUrl.trim() : undefined;
   const riskAcknowledgement = requestBody.riskAcknowledgement;
   const nickname = nicknameRaw?.trim();
   const { method: kiroMethod, invalid: invalidKiroMethod } = parseKiroMethod(kiroMethodRaw);
+  const { mode: gitlabAuthMode, invalid: invalidGitLabAuthMode } =
+    parseGitLabAuthMode(gitlabAuthModeRaw);
 
   // Check remote mode
   const target = getProxyTarget();
@@ -858,6 +979,22 @@ router.post('/:provider/start-url', async (req: Request, res: Response): Promise
     res.status(400).json({
       error: 'Invalid kiroMethod. Supported: aws, aws-authcode, google, github, idc',
       code: 'INVALID_KIRO_METHOD',
+    });
+    return;
+  }
+
+  if (provider === 'gitlab' && invalidGitLabAuthMode) {
+    res.status(400).json({
+      error: 'Invalid gitlabAuthMode. Supported: oauth, pat',
+      code: 'INVALID_GITLAB_AUTH_MODE',
+    });
+    return;
+  }
+
+  if (provider === 'gitlab' && gitlabAuthMode === 'pat') {
+    res.status(400).json({
+      error: 'GitLab PAT login must use /api/cliproxy/auth/gitlab/start',
+      code: 'GITLAB_PAT_REQUIRES_START',
     });
     return;
   }
@@ -900,11 +1037,18 @@ router.post('/:provider/start-url', async (req: Request, res: Response): Promise
       provider === 'kiro' && kiroManagementMethod
         ? `&method=${encodeURIComponent(kiroManagementMethod)}`
         : '';
+    const gitlabQuery =
+      provider === 'gitlab' && gitlabBaseUrl
+        ? `&base_url=${encodeURIComponent(gitlabBaseUrl)}`
+        : '';
 
     // Call CLIProxyAPI to start OAuth and get auth URL
     // CLIProxyAPI management routes are under /v0/management prefix
     const response = await fetch(
-      buildProxyUrl(target, `/v0/management/${authUrlProvider}-auth-url?is_webui=true${kiroQuery}`),
+      buildProxyUrl(
+        target,
+        `/v0/management/${authUrlProvider}-auth-url?is_webui=true${kiroQuery}${gitlabQuery}`
+      ),
       { headers: buildManagementHeaders(target) }
     );
 

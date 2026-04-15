@@ -155,6 +155,10 @@ export function toKiroManagementMethod(method: KiroAuthMethod): 'aws' | 'google'
  * - Qwen:   Device Code Flow (polling-based, NO callback port needed)
  * - GHCP:   Device Code Flow (polling-based, NO callback port needed)
  * - Kimi:   Device Code Flow (polling-based, NO callback port needed)
+ * - Cursor: Device-style browser polling (NO callback port needed)
+ * - GitLab: Authorization Code Flow with callback server on port 17171
+ * - CodeBuddy: Device-style browser polling (NO callback port needed)
+ * - Kilo: Device Code Flow (polling-based, NO callback port needed)
  */
 export const OAUTH_CALLBACK_PORTS: Partial<Record<CLIProxyProvider, number>> =
   CLIPROXY_PROVIDER_IDS.reduce(
@@ -274,6 +278,34 @@ export const OAUTH_CONFIGS: Record<CLIProxyProvider, ProviderOAuthConfig> = {
     scopes: ['api'],
     authFlag: '--kimi-login',
   },
+  cursor: {
+    provider: 'cursor',
+    displayName: 'Cursor',
+    authUrl: 'https://cursor.com/loginDeepControl',
+    scopes: [],
+    authFlag: '--cursor-login',
+  },
+  gitlab: {
+    provider: 'gitlab',
+    displayName: 'GitLab Duo',
+    authUrl: 'https://gitlab.com/oauth/authorize',
+    scopes: ['api', 'read_user'],
+    authFlag: '--gitlab-login',
+  },
+  codebuddy: {
+    provider: 'codebuddy',
+    displayName: 'CodeBuddy (Tencent)',
+    authUrl: 'https://copilot.tencent.com/v2/plugin/auth/state',
+    scopes: [],
+    authFlag: '--codebuddy-login',
+  },
+  kilo: {
+    provider: 'kilo',
+    displayName: 'Kilo AI',
+    authUrl: 'https://api.kilo.ai/api/device-auth/codes',
+    scopes: [],
+    authFlag: '--kilo-login',
+  },
 };
 
 /**
@@ -373,6 +405,12 @@ export interface OAuthOptions {
   noIncognito?: boolean;
   /** If true, skip OAuth and import token from Kiro IDE directly (Kiro only) */
   import?: boolean;
+  /** GitLab auth mode override. */
+  gitlabAuthMode?: 'oauth' | 'pat';
+  /** GitLab self-hosted base URL override. */
+  gitlabBaseUrl?: string;
+  /** GitLab personal access token for PAT login. */
+  gitlabPersonalAccessToken?: string;
   /** Enable paste-callback mode: show auth URL and prompt for callback paste */
   pasteCallback?: boolean;
   /** If true, use port-forwarding mode (skip interactive prompt in headless) */
