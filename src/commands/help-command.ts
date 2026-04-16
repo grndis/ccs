@@ -249,7 +249,7 @@ export async function handleHelpCommand(writeLine: HelpWriter = console.log): Pr
 
   writeLine(header(`CCS CLI v${packageJson.version}`));
   writeLine('');
-  writeLine('  Claude profile switching, provider routing, and compatible runtime bridges.');
+  writeLine('  Claude profile switching, provider routing, runtime bridges, and browser tooling.');
   writeLine('');
 
   writeLine(subheader('Usage'));
@@ -279,6 +279,7 @@ export async function handleHelpCommand(writeLine: HelpWriter = console.log): Pr
     [
       { name: 'ccs help profiles', summary: getTopicSummary('profiles') },
       { name: 'ccs help providers', summary: getTopicSummary('providers') },
+      { name: 'ccs help browser', summary: getTopicSummary('browser') },
       { name: 'ccs help completion', summary: getTopicSummary('completion') },
       { name: 'ccs help targets', summary: getTopicSummary('targets') },
       { name: 'ccs api --help', summary: 'Deep help for API profile lifecycle commands' },
@@ -328,6 +329,10 @@ export async function handleHelpRoute(
     await showTargetsHelp(writeLine);
     return;
   }
+  if (topic === 'browser') {
+    await (await import('./browser-command')).showBrowserHelp(writeLine);
+    return;
+  }
   if (topic === 'completion') {
     const { showShellCompletionHelp } = await import('./shell-completion-command');
     showShellCompletionHelp(writeLine);
@@ -342,6 +347,7 @@ export async function handleHelpRoute(
       await new AuthCommands().showHelp();
     },
     cleanup: async () => (await import('./cleanup-command')).handleCleanupCommand(['--help']),
+    browser: async () => (await import('./browser-command')).showBrowserHelp(writeLine),
     cliproxy: async () => (await import('./cliproxy/help-subcommand')).showHelp(),
     copilot: async () =>
       process.exit(await (await import('./copilot-command')).handleCopilotCommand(['--help'])),

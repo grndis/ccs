@@ -45,6 +45,8 @@ export interface CodexMcpServerEntry {
   toolTimeoutSec: number | null;
   enabledTools: string[];
   disabledTools: string[];
+  isCcsManaged: boolean;
+  managementSurface: 'browser-settings' | null;
 }
 
 export interface CodexFeatureCatalogEntry {
@@ -239,6 +241,8 @@ export function readCodexMcpServers(config: Record<string, unknown> | null): Cod
         toolTimeoutSec: asNumber(server.tool_timeout_sec),
         enabledTools: asStringArray(server.enabled_tools),
         disabledTools: asStringArray(server.disabled_tools),
+        isCcsManaged: name === 'ccs_browser',
+        managementSurface: name === 'ccs_browser' ? 'browser-settings' : null,
       };
     })
     .filter((entry): entry is CodexMcpServerEntry => entry !== null)

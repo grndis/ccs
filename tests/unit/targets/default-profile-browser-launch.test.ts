@@ -4,6 +4,7 @@ import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
 
 const BROWSER_PROMPT_SNIPPET = 'prefer the CCS MCP Browser tool';
 
@@ -244,5 +245,84 @@ server.listen(0, '127.0.0.1', () => {
     expect(launchedEnv).toContain(`port=${port}`);
     expect(launchedEnv).toContain(`httpUrl=http://127.0.0.1:${port}`);
     expect(launchedEnv).toContain('wsUrl=ws://127.0.0.1/devtools/browser/default-target');
+  });
+
+  it('uses config-backed browser attach settings when env overrides are absent', async () => {
+    if (process.platform === 'win32') return;
+
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpHome;
+
+    try {
+      const mockServerScriptPath = path.join(tmpHome, 'mock-devtools-server.js');
+      const mockServerPortPath = path.join(tmpHome, 'mock-devtools-port.txt');
+      fs.writeFileSync(
+        mockServerScriptPath,
+        `const { createServer } = require('http');
+const fs = require('fs');
+const server = createServer((req, res) => {
+  if (req.url === '/json/version') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ Browser: 'Chrome/136.0.0.0', webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/browser/config-target' }));
+    return;
+  }
+  res.writeHead(404);
+  res.end('not found');
+});
+server.listen(0, '127.0.0.1', () => {
+  const address = server.address();
+  fs.writeFileSync(${JSON.stringify(mockServerPortPath)}, String(address.port), 'utf8');
+});
+`,
+        'utf8'
+      );
+
+      devtoolsServer = spawn(process.execPath, [mockServerScriptPath], {
+        stdio: 'ignore',
+        env: baseEnv,
+      });
+
+      const port = await waitForMockDevtoolsPort(mockServerPortPath);
+      await waitForDevtoolsVersionEndpoint(port);
+
+      fs.mkdirSync(browserProfileDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(browserProfileDir, 'DevToolsActivePort'),
+        `${port}\n/devtools/browser/config-target`,
+        'utf8'
+      );
+
+      mutateUnifiedConfig((config) => {
+        config.browser = {
+          claude: {
+            enabled: true,
+            user_data_dir: browserProfileDir,
+            devtools_port: Number.parseInt(port, 10),
+          },
+          codex: {
+            enabled: true,
+          },
+        };
+      });
+
+      const result = runCcs(['default', 'smoke'], {
+        ...baseEnv,
+      });
+
+      expect(result.status).toBe(0);
+      const launchedArgs = fs.readFileSync(claudeArgsLogPath, 'utf8');
+      expect(launchedArgs).toContain(BROWSER_PROMPT_SNIPPET);
+
+      const launchedEnv = fs.readFileSync(claudeEnvLogPath, 'utf8');
+      expect(launchedEnv).toContain(`userDataDir=${browserProfileDir}`);
+      expect(launchedEnv).toContain(`port=${port}`);
+      expect(launchedEnv).toContain('wsUrl=ws://127.0.0.1/devtools/browser/config-target');
+    } finally {
+      if (originalCcsHome !== undefined) {
+        process.env.CCS_HOME = originalCcsHome;
+      } else {
+        delete process.env.CCS_HOME;
+      }
+    }
   });
 });

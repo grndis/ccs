@@ -3,6 +3,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
 
 interface RunResult {
   status: number | null;
@@ -191,6 +192,47 @@ process.exit(0);
         'fix failing tests',
       ],
     ]);
+  });
+
+  it('skips Codex browser MCP overrides when browser tooling is disabled in config', () => {
+    if (process.platform === 'win32') return;
+
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpHome;
+
+    try {
+      mutateUnifiedConfig((config) => {
+        config.browser = {
+          claude: {
+            enabled: false,
+            user_data_dir: '',
+            devtools_port: 9222,
+          },
+          codex: {
+            enabled: false,
+          },
+        };
+      });
+
+      const result = runCcs(['default', '--target', 'codex', 'fix failing tests'], {
+        ...process.env,
+        CI: '1',
+        NO_COLOR: '1',
+        CCS_HOME: tmpHome,
+        CCS_CODEX_PATH: fakeCodexPath,
+        CCS_TEST_CODEX_ARGS_OUT: codexArgsLogPath,
+      });
+
+      expect(result.status).toBe(0);
+      const calls = readLoggedCodexCalls(codexArgsLogPath);
+      expect(calls).toEqual([['fix failing tests']]);
+    } finally {
+      if (originalCcsHome !== undefined) {
+        process.env.CCS_HOME = originalCcsHome;
+      } else {
+        delete process.env.CCS_HOME;
+      }
+    }
   });
 
   it('keeps browser MCP runtime overrides when CCS_THINKING is ignored for native Codex default mode', () => {

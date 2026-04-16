@@ -3,7 +3,13 @@
  * Type definitions for WebSearch, GlobalEnv, and Proxy configurations
  */
 
-import type { CliproxyServerConfig, RemoteProxyStatus } from '@/lib/api-client';
+import type {
+  BrowserSettingsConfig,
+  BrowserStatusPayload,
+  CliproxyServerConfig,
+  RemoteProxyStatus,
+  UpdateBrowserSettingsPayload,
+} from '@/lib/api-client';
 
 // === WebSearch Types ===
 
@@ -162,6 +168,7 @@ export interface OfficialChannelsStatus {
 // === Tab Types ===
 
 export type SettingsTab =
+  | 'browser'
   | 'websearch'
   | 'image'
   | 'channels'
@@ -192,3 +199,6 @@ export interface ThinkingConfig {
 // === Re-exports from api-client ===
 
 export type { CliproxyServerConfig, RemoteProxyStatus };
+export type BrowserConfig = BrowserSettingsConfig;
+export type BrowserStatus = BrowserStatusPayload;
+export type BrowserSavePayload = UpdateBrowserSettingsPayload;

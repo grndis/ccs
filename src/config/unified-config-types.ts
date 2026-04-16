@@ -813,6 +813,40 @@ export const DEFAULT_DASHBOARD_AUTH_CONFIG: DashboardAuthConfig = {
 };
 
 /**
+ * Browser automation configuration.
+ * Controls Claude browser attach and Codex browser tooling.
+ */
+export interface BrowserClaudeConfig {
+  /** Enable Claude browser attach (default: false) */
+  enabled: boolean;
+  /** Chrome user-data directory used for attach mode */
+  user_data_dir: string;
+  /** DevTools port used for attach mode (default: 9222) */
+  devtools_port: number;
+}
+
+export interface BrowserCodexConfig {
+  /** Enable Codex browser tooling injection (default: true) */
+  enabled: boolean;
+}
+
+export interface BrowserConfig {
+  claude: BrowserClaudeConfig;
+  codex: BrowserCodexConfig;
+}
+
+export const DEFAULT_BROWSER_CONFIG: BrowserConfig = {
+  claude: {
+    enabled: false,
+    user_data_dir: '',
+    devtools_port: 9222,
+  },
+  codex: {
+    enabled: true,
+  },
+};
+
+/**
  * Image analysis configuration.
  * Routes image/PDF files through CLIProxy for vision analysis.
  */
@@ -895,6 +929,8 @@ export interface UnifiedConfig {
   channels?: OfficialChannelsConfig;
   /** Dashboard authentication configuration (optional) */
   dashboard_auth?: DashboardAuthConfig;
+  /** Browser automation configuration */
+  browser?: BrowserConfig;
   /** Image analysis configuration (vision via CLIProxy) */
   image_analysis?: ImageAnalysisConfig;
 }
@@ -1041,6 +1077,10 @@ export function createEmptyUnifiedConfig(): UnifiedConfig {
     thinking: { ...DEFAULT_THINKING_CONFIG },
     channels: { ...DEFAULT_OFFICIAL_CHANNELS_CONFIG },
     dashboard_auth: { ...DEFAULT_DASHBOARD_AUTH_CONFIG },
+    browser: {
+      claude: { ...DEFAULT_BROWSER_CONFIG.claude },
+      codex: { ...DEFAULT_BROWSER_CONFIG.codex },
+    },
     image_analysis: { ...DEFAULT_IMAGE_ANALYSIS_CONFIG },
   };
 }

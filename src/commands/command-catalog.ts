@@ -1,7 +1,13 @@
 import { COPILOT_SUBCOMMANDS } from '../copilot/constants';
 import { CLIPROXY_PROVIDER_IDS } from '../cliproxy/provider-capabilities';
 
-export type HelpTopicName = 'profiles' | 'providers' | 'kiro' | 'completion' | 'targets';
+export type HelpTopicName =
+  | 'profiles'
+  | 'providers'
+  | 'kiro'
+  | 'browser'
+  | 'completion'
+  | 'targets';
 
 export interface HelpTopicEntry {
   name: HelpTopicName;
@@ -25,6 +31,7 @@ export const ROOT_HELP_TOPICS: readonly HelpTopicEntry[] = [
   { name: 'profiles', summary: 'Account profiles, API profiles, and CLIProxy variants' },
   { name: 'providers', summary: 'Built-in OAuth providers and runtime shortcuts' },
   { name: 'kiro', summary: 'Kiro auth methods, IDC flags, and callback guidance' },
+  { name: 'browser', summary: 'Claude Browser Attach and Codex Browser Tools guidance' },
   { name: 'completion', summary: 'Shell completion install, refresh, and testing' },
   { name: 'targets', summary: 'Claude, Droid, and Codex target routing' },
 ] as const;
@@ -111,6 +118,12 @@ export const ROOT_COMMAND_CATALOG: readonly RootCommandEntry[] = [
   {
     name: 'proxy',
     summary: 'Start or inspect the OpenAI-compatible local proxy',
+    group: 'runtime',
+    visibility: 'public',
+  },
+  {
+    name: 'browser',
+    summary: 'Inspect Claude Browser Attach and Codex Browser Tools readiness',
     group: 'runtime',
     visibility: 'public',
   },
@@ -307,6 +320,7 @@ export const COMMAND_FLAG_SUGGESTIONS: Readonly<Record<string, readonly string[]
   config: ['--help', '-h', '--port', '-p', '--host', '-H', '--dev'],
   cursor: ['--help', '-h'],
   doctor: ['--fix', '-f', '--help', '-h'],
+  browser: ['status', 'doctor', '--help', '-h'],
   docker: ['--help', '-h', '--host'],
   env: ['--format', '--shell', '--ide', '--help', '-h'],
   migrate: MIGRATE_FLAGS,

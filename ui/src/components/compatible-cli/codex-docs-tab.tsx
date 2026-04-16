@@ -139,6 +139,11 @@ export function CodexDocsTab({ diagnostics }: CodexDocsTabProps) {
                 Export <code>CLIPROXY_API_KEY</code> before launching native Codex.
               </li>
             </ol>
+            <p>
+              CCS-managed browser tooling belongs to <code>Settings &gt; Browser</code>. Do not edit
+              the <code>ccs_browser</code> entry from the generic MCP card unless you are
+              intentionally overriding the managed path in raw TOML.
+            </p>
           </CardContent>
         </Card>
 

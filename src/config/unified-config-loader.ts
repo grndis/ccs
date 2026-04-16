@@ -23,6 +23,7 @@ import {
   DEFAULT_THINKING_CONFIG,
   DEFAULT_OFFICIAL_CHANNELS_CONFIG,
   DEFAULT_DASHBOARD_AUTH_CONFIG,
+  DEFAULT_BROWSER_CONFIG,
   DEFAULT_IMAGE_ANALYSIS_CONFIG,
   DEFAULT_LOGGING_CONFIG,
 } from './unified-config-types';
@@ -34,6 +35,7 @@ import type {
   OfficialChannelsConfig,
   OfficialChannelId,
   DashboardAuthConfig,
+  BrowserConfig,
   ImageAnalysisConfig,
   LoggingConfig,
   CursorConfig,
@@ -46,6 +48,7 @@ import {
   normalizeOfficialChannelIds,
   resolveLegacyDiscordSelection,
 } from '../channels/official-channels-runtime';
+import { getRecommendedBrowserUserDataDir } from '../utils/browser/browser-settings';
 import { canonicalizeImageAnalysisConfig } from '../utils/hooks/image-analysis-backend-resolver';
 import { normalizeSearxngBaseUrl } from '../utils/websearch/types';
 
@@ -53,6 +56,32 @@ const CONFIG_YAML = 'config.yaml';
 const CONFIG_JSON = 'config.json';
 const CONFIG_LOCK = 'config.yaml.lock';
 const LOCK_STALE_MS = 5000; // Lock is stale after 5 seconds
+
+function normalizeBrowserDevtoolsPort(value: number | undefined): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_BROWSER_CONFIG.claude.devtools_port;
+  }
+
+  const port = Math.floor(value as number);
+  if (port < 1 || port > 65535) {
+    return DEFAULT_BROWSER_CONFIG.claude.devtools_port;
+  }
+
+  return port;
+}
+
+function canonicalizeBrowserConfig(config?: BrowserConfig): BrowserConfig {
+  return {
+    claude: {
+      enabled: config?.claude?.enabled ?? DEFAULT_BROWSER_CONFIG.claude.enabled,
+      user_data_dir: config?.claude?.user_data_dir?.trim() || getRecommendedBrowserUserDataDir(),
+      devtools_port: normalizeBrowserDevtoolsPort(config?.claude?.devtools_port),
+    },
+    codex: {
+      enabled: config?.codex?.enabled ?? DEFAULT_BROWSER_CONFIG.codex.enabled,
+    },
+  };
+}
 
 /**
  * Get path to unified config.yaml
@@ -592,6 +621,7 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
         partial.dashboard_auth?.session_timeout_hours ??
         DEFAULT_DASHBOARD_AUTH_CONFIG.session_timeout_hours,
     },
+    browser: canonicalizeBrowserConfig(partial.browser),
     // Image analysis config - enabled by default for CLIProxy providers
     image_analysis: canonicalizeImageAnalysisConfig({
       enabled: partial.image_analysis?.enabled ?? DEFAULT_IMAGE_ANALYSIS_CONFIG.enabled,
@@ -912,6 +942,23 @@ function generateYamlWithComments(config: UnifiedConfig): string {
           { indent: 2, lineWidth: -1, quotingType: '"' }
         )
         .trim()
+    );
+    lines.push('');
+  }
+
+  // Browser automation section
+  if (config.browser) {
+    lines.push('# ----------------------------------------------------------------------------');
+    lines.push('# Browser Automation: Claude browser attach and Codex browser tooling');
+    lines.push('# Claude attach reuses a running Chrome/Chromium session with remote debugging.');
+    lines.push('# Codex tooling controls whether CCS injects Playwright MCP overrides.');
+    lines.push('#');
+    lines.push('# claude.user_data_dir should point at the Chrome user-data directory for the');
+    lines.push('# dedicated attach session. claude.devtools_port is the expected debugging port.');
+    lines.push('# Configure via: Settings > Browser or `ccs browser ...`.');
+    lines.push('# ----------------------------------------------------------------------------');
+    lines.push(
+      yaml.dump({ browser: config.browser }, { indent: 2, lineWidth: -1, quotingType: '"' }).trim()
     );
     lines.push('');
   }
@@ -1332,6 +1379,15 @@ export function getDashboardAuthConfig(): DashboardAuthConfig {
     password_hash: envPasswordHash ?? config.dashboard_auth?.password_hash ?? '',
     session_timeout_hours: config.dashboard_auth?.session_timeout_hours ?? 24,
   };
+}
+
+/**
+ * Get browser automation configuration.
+ * Returns canonicalized defaults if not configured.
+ */
+export function getBrowserConfig(): BrowserConfig {
+  const config = loadOrCreateUnifiedConfig();
+  return canonicalizeBrowserConfig(config.browser);
 }
 
 /**

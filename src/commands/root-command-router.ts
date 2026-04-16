@@ -106,6 +106,13 @@ export const ROOT_COMMAND_ROUTES: readonly NamedCommandRoute[] = [
     },
   },
   {
+    name: 'browser',
+    handle: async (args) => {
+      const { handleBrowserCommand } = await import('./browser-command');
+      await handleBrowserCommand(args);
+    },
+  },
+  {
     name: 'cleanup',
     aliases: ['--cleanup'],
     handle: async (args) => {

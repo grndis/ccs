@@ -31,6 +31,10 @@ vi.mock('@/pages/settings/sections/websearch', () => ({
   default: () => <div>WebSearch Section</div>,
 }));
 
+vi.mock('@/pages/settings/sections/browser', () => ({
+  default: () => <div>Browser Section</div>,
+}));
+
 vi.mock('@/pages/settings/sections/channels', () => ({
   default: () => <div>Channels Section</div>,
 }));
@@ -70,6 +74,7 @@ describe('SettingsPage raw config panel', () => {
   });
 
   it('keeps the current config editor visible while raw config refreshes', async () => {
+    window.history.pushState({}, '', '/settings');
     mocks.useRawConfig.mockReturnValue({
       rawConfig: 'websearch:\n  enabled: true\n',
       loading: true,
@@ -83,5 +88,20 @@ describe('SettingsPage raw config panel', () => {
     expect(await screen.findAllByText('WebSearch Section')).toHaveLength(2);
     expect(screen.getByLabelText('config editor')).toHaveValue('websearch:\n  enabled: true\n');
     expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+  });
+
+  it('renders the Browser section when the settings tab query is browser', async () => {
+    window.history.pushState({}, '', '/settings?tab=browser');
+    mocks.useRawConfig.mockReturnValue({
+      rawConfig: 'browser:\n  claude:\n    enabled: false\n',
+      loading: false,
+      copied: false,
+      fetchRawConfig: mocks.fetchRawConfig,
+      copyToClipboard: mocks.copyToClipboard,
+    });
+
+    render(<SettingsPage />);
+
+    expect(await screen.findAllByText('Browser Section')).toHaveLength(2);
   });
 });

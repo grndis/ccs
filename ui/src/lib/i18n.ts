@@ -873,6 +873,7 @@ const resources = {
         configFileNotFound: 'Config file not found',
       },
       settingsTabs: {
+        browser: 'Browser',
         web: 'Web',
         image: 'Image',
         channels: 'Channels',
@@ -2424,6 +2425,61 @@ const resources = {
           description: 'Configure image analysis settings.',
           loading: 'Loading image settings...',
         },
+        browserSection: {
+          title: 'Browser',
+          description: 'Primary setup surface for managed browser automation in CCS.',
+          primaryTitle: 'Settings > Browser is the primary browser setup surface.',
+          primaryDescription:
+            'Configure Claude Browser Attach and Codex Browser Tools here, then use the guidance below to launch or verify each lane.',
+          readiness: 'Readiness',
+          nextStep: 'Next step',
+          actions: {
+            saveClaude: 'Save Claude settings',
+            saveCodex: 'Save Codex settings',
+            testConnection: 'Test connection',
+            copyLaunchCommand: 'Copy launch command',
+          },
+          messages: {
+            statusRefreshed: 'Browser status refreshed',
+            launchCommandCopied: 'Launch command copied',
+          },
+          claude: {
+            title: 'Claude Browser Attach',
+            description:
+              'Attach Claude-target launches to a managed Chrome session with remote debugging enabled.',
+            enabledLabel: 'Enable Claude Browser Attach',
+            enabledDescription:
+              'When enabled, CCS prepares the managed browser MCP runtime for Claude-target launches.',
+            userDataDir: 'Chrome user-data directory',
+            userDataDirHint:
+              'Use a dedicated Chrome profile directory so attach-mode state stays isolated from your daily browser.',
+            devtoolsPort: 'DevTools port',
+            devtoolsPortHint: 'Use the same port when you launch Chrome in attach mode.',
+            devtoolsPortInvalid: 'Enter a valid port between 1 and 65535.',
+            effectivePath: 'Effective attach path',
+            recommendedPath: 'Recommended path',
+            managedRuntime: 'Managed browser runtime',
+            overrideMessage:
+              'An environment override is currently active from {{source}}. This dashboard remains the source of truth once that override is removed.',
+            launchGuidance: 'Launch guidance',
+            launchGuidanceHint:
+              'Start Chrome with remote debugging enabled, then rerun Test connection if needed.',
+          },
+          codex: {
+            title: 'Codex Browser Tools',
+            description:
+              'Controls the managed Playwright MCP override path for Codex-target launches.',
+            enabledLabel: 'Enable Codex Browser Tools',
+            enabledDescription:
+              'Keep this on to make the Browser page the first-class setup surface for Codex browser tooling.',
+            serverName: 'Managed server name',
+            overrideSupport: 'Config override support',
+            overrideSupported: 'Supported',
+            overrideUnsupported: 'Not supported',
+            binary: 'Detected Codex binary',
+            notDetected: 'Not detected',
+          },
+        },
       },
       codexPage: {
         title: 'Codex',
@@ -3284,6 +3340,7 @@ const resources = {
         configFileNotFound: '未找到配置文件',
       },
       settingsTabs: {
+        browser: '浏览器',
         web: '网页',
         image: '图片',
         channels: '频道',
@@ -4781,6 +4838,55 @@ const resources = {
           description: '配置图片分析设置。',
           loading: '加载图片设置中...',
         },
+        browserSection: {
+          title: '浏览器',
+          description: 'CCS 中托管浏览器自动化的主设置入口。',
+          primaryTitle: 'Settings > Browser 是主要的浏览器设置界面。',
+          primaryDescription:
+            '在这里配置 Claude Browser Attach 和 Codex Browser Tools，然后按下方指引启动或验证每条路径。',
+          readiness: '就绪状态',
+          nextStep: '下一步',
+          actions: {
+            saveClaude: '保存 Claude 设置',
+            saveCodex: '保存 Codex 设置',
+            testConnection: '测试连接',
+            copyLaunchCommand: '复制启动命令',
+          },
+          messages: {
+            statusRefreshed: '浏览器状态已刷新',
+            launchCommandCopied: '启动命令已复制',
+          },
+          claude: {
+            title: 'Claude Browser Attach',
+            description: '将 Claude 目标会话附加到启用了远程调试的 Chrome 会话。',
+            enabledLabel: '启用 Claude Browser Attach',
+            enabledDescription: '启用后，CCS 会为 Claude 目标会话准备托管浏览器 MCP 运行时。',
+            userDataDir: 'Chrome 用户数据目录',
+            userDataDirHint: '建议使用单独的 Chrome 配置目录，避免自动化状态污染日常浏览器。',
+            devtoolsPort: 'DevTools 端口',
+            devtoolsPortHint: '必须与 Chrome attach 模式实际启动时使用的端口一致。',
+            devtoolsPortInvalid: '请输入 1 到 65535 之间的有效端口。',
+            effectivePath: '当前生效的 attach 路径',
+            recommendedPath: '推荐路径',
+            managedRuntime: '托管浏览器运行时',
+            overrideMessage:
+              '当前存在来自 {{source}} 的环境变量覆盖。移除该覆盖后，Dashboard 配置将重新成为唯一来源。',
+            launchGuidance: '启动指引',
+            launchGuidanceHint: '使用远程调试启动 Chrome，如有需要再重新执行 Test connection。',
+          },
+          codex: {
+            title: 'Codex Browser Tools',
+            description: '控制 Codex 目标会话中的托管 Playwright MCP 浏览器路径。',
+            enabledLabel: '启用 Codex Browser Tools',
+            enabledDescription: '保持开启可让 Browser 页面成为 Codex 浏览器工具的主设置入口。',
+            serverName: '托管服务名称',
+            overrideSupport: '配置覆盖支持',
+            overrideSupported: '支持',
+            overrideUnsupported: '不支持',
+            binary: '检测到的 Codex 可执行文件',
+            notDetected: '未检测到',
+          },
+        },
       },
       codexPage: {
         title: 'Codex',
@@ -5716,6 +5822,7 @@ const resources = {
         configFileNotFound: 'Không tìm thấy tập tin cấu hình',
       },
       settingsTabs: {
+        browser: 'Trình duyệt',
         web: 'Web',
         image: 'Hình ảnh',
         channels: 'Kênh',
@@ -7246,6 +7353,62 @@ const resources = {
           description: 'Cấu hình cài đặt phân tích hình ảnh.',
           loading: 'Đang tải cài đặt hình ảnh...',
         },
+        browserSection: {
+          title: 'Trình duyệt',
+          description: 'Bề mặt thiết lập chính cho tự động hóa trình duyệt được CCS quản lý.',
+          primaryTitle: 'Settings > Browser là nơi thiết lập trình duyệt chính.',
+          primaryDescription:
+            'Cấu hình Claude Browser Attach và Codex Browser Tools tại đây, rồi dùng hướng dẫn bên dưới để khởi chạy hoặc kiểm tra từng luồng.',
+          readiness: 'Trạng thái sẵn sàng',
+          nextStep: 'Bước tiếp theo',
+          actions: {
+            saveClaude: 'Lưu cấu hình Claude',
+            saveCodex: 'Lưu cấu hình Codex',
+            testConnection: 'Kiểm tra kết nối',
+            copyLaunchCommand: 'Sao chép lệnh khởi chạy',
+          },
+          messages: {
+            statusRefreshed: 'Đã làm mới trạng thái trình duyệt',
+            launchCommandCopied: 'Đã sao chép lệnh khởi chạy',
+          },
+          claude: {
+            title: 'Claude Browser Attach',
+            description:
+              'Gắn các phiên chạy Claude-target vào một phiên Chrome có bật remote debugging.',
+            enabledLabel: 'Bật Claude Browser Attach',
+            enabledDescription:
+              'Khi bật, CCS sẽ chuẩn bị runtime MCP trình duyệt được quản lý cho các phiên chạy Claude-target.',
+            userDataDir: 'Thư mục dữ liệu người dùng Chrome',
+            userDataDirHint:
+              'Nên dùng thư mục profile Chrome riêng để trạng thái attach được tách khỏi trình duyệt hằng ngày.',
+            devtoolsPort: 'Cổng DevTools',
+            devtoolsPortHint:
+              'Phải khớp với cổng thực tế dùng khi khởi chạy Chrome trong attach mode.',
+            devtoolsPortInvalid: 'Nhập cổng hợp lệ trong khoảng 1 đến 65535.',
+            effectivePath: 'Đường dẫn attach đang có hiệu lực',
+            recommendedPath: 'Đường dẫn khuyến nghị',
+            managedRuntime: 'Runtime trình duyệt được quản lý',
+            overrideMessage:
+              'Hiện có override môi trường từ {{source}}. Khi bỏ override này, Dashboard sẽ lại là nguồn cấu hình chính.',
+            launchGuidance: 'Hướng dẫn khởi chạy',
+            launchGuidanceHint:
+              'Khởi chạy Chrome với remote debugging, rồi chạy lại Test connection nếu cần.',
+          },
+          codex: {
+            title: 'Codex Browser Tools',
+            description:
+              'Điều khiển đường dẫn trình duyệt Playwright MCP được quản lý cho các phiên chạy Codex-target.',
+            enabledLabel: 'Bật Codex Browser Tools',
+            enabledDescription:
+              'Giữ bật để trang Browser là nơi cấu hình chính cho công cụ trình duyệt của Codex.',
+            serverName: 'Tên dịch vụ được quản lý',
+            overrideSupport: 'Hỗ trợ config override',
+            overrideSupported: 'Được hỗ trợ',
+            overrideUnsupported: 'Không được hỗ trợ',
+            binary: 'Binary Codex được phát hiện',
+            notDetected: 'Không phát hiện',
+          },
+        },
       },
       codexPage: {
         title: 'Codex',
@@ -8180,6 +8343,7 @@ const resources = {
         configFileNotFound: '設定ファイルが見つかりません',
       },
       settingsTabs: {
+        browser: 'ブラウザ',
         web: 'Web検索',
         image: '画像',
         channels: 'チャンネル',
@@ -9610,6 +9774,62 @@ const resources = {
           title: '画像分析',
           description: '画像分析の設定。',
           loading: '画像設定を読み込み中...',
+        },
+        browserSection: {
+          title: 'ブラウザ',
+          description: 'CCS が管理するブラウザ自動化の主要な設定画面です。',
+          primaryTitle: 'Settings > Browser がブラウザ設定の主入口です。',
+          primaryDescription:
+            'ここで Claude Browser Attach と Codex Browser Tools を設定し、各レーンの起動や確認は下の案内を使ってください。',
+          readiness: '準備状況',
+          nextStep: '次の手順',
+          actions: {
+            saveClaude: 'Claude 設定を保存',
+            saveCodex: 'Codex 設定を保存',
+            testConnection: '接続を確認',
+            copyLaunchCommand: '起動コマンドをコピー',
+          },
+          messages: {
+            statusRefreshed: 'ブラウザ状態を更新しました',
+            launchCommandCopied: '起動コマンドをコピーしました',
+          },
+          claude: {
+            title: 'Claude Browser Attach',
+            description:
+              'リモートデバッグを有効にした Chrome セッションへ Claude-target の起動を接続します。',
+            enabledLabel: 'Claude Browser Attach を有効にする',
+            enabledDescription:
+              '有効にすると、CCS は Claude-target 起動向けに管理済みブラウザ MCP ランタイムを準備します。',
+            userDataDir: 'Chrome ユーザーデータディレクトリ',
+            userDataDirHint:
+              '日常利用のブラウザと状態を分離するため、専用の Chrome プロファイルディレクトリを使うことを推奨します。',
+            devtoolsPort: 'DevTools ポート',
+            devtoolsPortHint:
+              'Chrome を attach モードで起動したときに使う実際のポートと一致させてください。',
+            devtoolsPortInvalid: '1 から 65535 の有効なポート番号を入力してください。',
+            effectivePath: '現在有効な attach パス',
+            recommendedPath: '推奨パス',
+            managedRuntime: '管理済みブラウザランタイム',
+            overrideMessage:
+              '{{source}} から環境変数オーバーライドが有効です。これを外すと Dashboard の設定が再び主ソースになります。',
+            launchGuidance: '起動ガイダンス',
+            launchGuidanceHint:
+              'リモートデバッグ付きで Chrome を起動し、必要なら Test connection を再実行してください。',
+          },
+          codex: {
+            title: 'Codex Browser Tools',
+            description:
+              'Codex-target 起動向けの管理済み Playwright MCP ブラウザパスを制御します。',
+            enabledLabel: 'Codex Browser Tools を有効にする',
+            enabledDescription:
+              '有効のままにすると、Browser ページが Codex ブラウザツールの主設定画面になります。',
+            serverName: '管理対象サーバー名',
+            overrideSupport: 'config override 対応',
+            overrideSupported: '対応',
+            overrideUnsupported: '非対応',
+            binary: '検出された Codex バイナリ',
+            notDetected: '未検出',
+          },
         },
       },
       setupWizard: {

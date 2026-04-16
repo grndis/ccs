@@ -19,6 +19,7 @@ import settingsRoutes from './settings-routes';
 import channelsRoutes from './channels-routes';
 import websearchRoutes from './websearch-routes';
 import imageAnalysisRoutes from './image-analysis-routes';
+import browserRoutes from './browser-routes';
 import cliproxyAuthRoutes from './cliproxy-auth-routes';
 import cliproxyStatsRoutes from './cliproxy-stats-routes';
 import cliproxyRoutingRoutes from './cliproxy-routing-routes';
@@ -97,6 +98,7 @@ apiRoutes.use('/cliproxy/openai-compat', providerRoutes);
 
 // ==================== WebSearch ====================
 apiRoutes.use('/websearch', websearchRoutes);
+apiRoutes.use('/browser', browserRoutes);
 apiRoutes.use('/image-analysis', imageAnalysisRoutes);
 
 // ==================== Copilot ====================

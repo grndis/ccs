@@ -66,11 +66,15 @@ import {
 import {
   appendBrowserToolArgs,
   ensureBrowserMcpOrThrow,
+  getEffectiveClaudeBrowserAttachConfig,
   resolveBrowserRuntimeEnv,
-  resolveConfiguredBrowserProfileDir,
   syncBrowserMcpToConfigDir,
 } from '../../utils/browser';
-import { loadOrCreateUnifiedConfig, getThinkingConfig } from '../../config/unified-config-loader';
+import {
+  getBrowserConfig,
+  loadOrCreateUnifiedConfig,
+  getThinkingConfig,
+} from '../../config/unified-config-loader';
 import { HttpsTunnelProxy } from '../https-tunnel-proxy';
 import {
   isKiroAuthMethod,
@@ -260,8 +264,8 @@ export async function execClaudeWithCLIProxy(
   // Setup first-class CCS WebSearch runtime
   ensureWebSearchMcpOrThrow();
   const imageAnalysisMcpReady = ensureImageAnalysisMcpOrThrow();
-  const browserProfileDir = resolveConfiguredBrowserProfileDir(process.env.CCS_BROWSER_PROFILE_DIR);
-  if (browserProfileDir) {
+  const browserAttachConfig = getEffectiveClaudeBrowserAttachConfig(getBrowserConfig());
+  if (browserAttachConfig.enabled) {
     ensureBrowserMcpOrThrow();
   }
   displayWebSearchStatus();
@@ -1050,7 +1054,7 @@ export async function execClaudeWithCLIProxy(
 
   syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
   if (
-    browserProfileDir &&
+    browserAttachConfig.enabled &&
     inheritedClaudeConfigDir &&
     !syncBrowserMcpToConfigDir(inheritedClaudeConfigDir)
   ) {
@@ -1153,10 +1157,13 @@ export async function execClaudeWithCLIProxy(
   }
 
   // 11. Build final environment with all proxy chains
-  const browserRuntimeEnv = browserProfileDir
+  const browserRuntimeEnv = browserAttachConfig.enabled
     ? {
         ...(await resolveBrowserRuntimeEnv({
-          profileDir: browserProfileDir,
+          profileDir: browserAttachConfig.userDataDir,
+          devtoolsPort: browserAttachConfig.hasExplicitDevtoolsPort
+            ? String(browserAttachConfig.devtoolsPort)
+            : undefined,
         })),
       }
     : undefined;

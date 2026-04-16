@@ -36,6 +36,8 @@ const EMPTY_MCP_SERVER_DRAFT: CodexMcpServerEntry = {
   toolTimeoutSec: null,
   enabledTools: [],
   disabledTools: [],
+  isCcsManaged: false,
+  managementSurface: null,
 };
 
 function toCsv(value: string[]) {
@@ -70,9 +72,16 @@ function McpServerEditor({
 }: McpServerEditorProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<CodexMcpServerEntry>(initialDraft);
+  const reservedManagedBrowserDraft = isNew && draft.name.trim() === 'ccs_browser';
 
   return (
     <>
+      {reservedManagedBrowserDraft ? (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          <strong>ccs_browser</strong> is reserved for the CCS-managed browser tooling path.
+          Configure it from <code>Settings &gt; Browser</code> instead of creating it here.
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
           value={draft.name}
@@ -216,7 +225,9 @@ function McpServerEditor({
               disabledTools: draft.disabledTools,
             })
           }
-          disabled={disabled || saving || draft.name.trim().length === 0}
+          disabled={
+            disabled || saving || draft.name.trim().length === 0 || reservedManagedBrowserDraft
+          }
         >
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {/* TODO i18n: missing key codex.saveMcpServer */}
@@ -244,6 +255,8 @@ export function CodexMcpServersCard({
   );
   const draftSeed = selectedEntry ?? EMPTY_MCP_SERVER_DRAFT;
   const draftKey = JSON.stringify(draftSeed);
+  const selectedEntryIsManagedBrowser =
+    selectedEntry?.isCcsManaged && selectedEntry.managementSurface === 'browser-settings';
 
   return (
     <CodexConfigCardShell
@@ -255,6 +268,12 @@ export function CodexMcpServersCard({
       description="Manage the safe MCP transport fields. Keep auth headers and bearer tokens in raw TOML."
       disabledReason={disabledReason}
     >
+      {selectedEntryIsManagedBrowser ? (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          <strong>{selectedEntry?.name}</strong> is CCS-managed. Configure browser tooling from{' '}
+          <code>Settings &gt; Browser</code>; the generic MCP editor is read-only for this entry.
+        </div>
+      ) : null}
       <Select value={selectedName} onValueChange={setSelectedName} disabled={disabled}>
         <SelectTrigger>
           {/* TODO i18n: missing key codex.selectMcpServer */}
@@ -264,7 +283,7 @@ export function CodexMcpServersCard({
           <SelectItem value="new">{t('codex.createNewMcpServer')}</SelectItem>
           {entries.map((entry) => (
             <SelectItem key={entry.name} value={entry.name}>
-              {entry.name}
+              {entry.isCcsManaged ? `${entry.name} (CCS managed)` : entry.name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -273,9 +292,9 @@ export function CodexMcpServersCard({
         key={draftKey}
         initialDraft={draftSeed}
         isNew={selectedName === 'new'}
-        disabled={disabled}
+        disabled={disabled || Boolean(selectedEntryIsManagedBrowser)}
         saving={saving}
-        canDelete={selectedEntry !== null}
+        canDelete={selectedEntry !== null && !selectedEntryIsManagedBrowser}
         onDelete={async () => {
           if (!selectedEntry) return;
           await onDelete(selectedEntry.name);

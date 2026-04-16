@@ -13,6 +13,7 @@ import {
   type ComponentType,
 } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, FileCode, Copy, Check, GripVertical, AlertCircle } from 'lucide-react';
 import { CodeEditor } from '@/components/shared/code-editor';
@@ -48,6 +49,7 @@ function lazyWithRetry<T extends ComponentType<unknown>>(importFn: () => Promise
 
 // Lazy-loaded sections with retry capability
 const WebSearchSection = lazyWithRetry(() => import('./sections/websearch'));
+const BrowserSection = lazyWithRetry(() => import('./sections/browser'));
 const ImageAnalysisSection = lazyWithRetry(() => import('./sections/image-analysis'));
 const ChannelsSection = lazyWithRetry(() => import('./sections/channels'));
 const GlobalEnvSection = lazyWithRetry(() => import('./sections/globalenv-section'));
@@ -99,10 +101,36 @@ class SectionErrorBoundary extends Component<
   }
 }
 
+function resolveSettingsTab(tabParam: string | null | undefined): SettingsTab {
+  switch (tabParam?.toLowerCase()) {
+    case 'browser':
+      return 'browser';
+    case 'imageanalysis':
+    case 'image':
+      return 'image';
+    case 'channels':
+      return 'channels';
+    case 'globalenv':
+      return 'globalenv';
+    case 'proxy':
+      return 'proxy';
+    case 'auth':
+      return 'auth';
+    case 'thinking':
+      return 'thinking';
+    case 'backups':
+      return 'backups';
+    default:
+      return 'websearch';
+  }
+}
+
 // Inner component that uses context
 function SettingsPageInner() {
   const { t } = useTranslation();
-  const { activeTab, setActiveTab } = useSettingsTab();
+  const { setActiveTab } = useSettingsTab();
+  const [searchParams] = useSearchParams();
+  const activeTab = resolveSettingsTab(searchParams.get('tab'));
   const {
     rawConfig,
     loading: rawConfigLoading,
@@ -131,6 +159,7 @@ function SettingsPageInner() {
         </div>
         <SectionErrorBoundary>
           <Suspense fallback={<SectionSkeleton />}>
+            {activeTab === 'browser' && <BrowserSection />}
             {activeTab === 'websearch' && <WebSearchSection />}
             {activeTab === 'image' && <ImageAnalysisSection />}
             {activeTab === 'channels' && <ChannelsSection />}
@@ -156,6 +185,7 @@ function SettingsPageInner() {
             {/* Tab Content */}
             <SectionErrorBoundary>
               <Suspense fallback={<SectionSkeleton />}>
+                {activeTab === 'browser' && <BrowserSection />}
                 {activeTab === 'websearch' && <WebSearchSection />}
                 {activeTab === 'image' && <ImageAnalysisSection />}
                 {activeTab === 'channels' && <ChannelsSection />}

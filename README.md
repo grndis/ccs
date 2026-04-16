@@ -127,8 +127,10 @@ Deep dive:
 ![WebSearch Fallback](assets/screenshots/websearch.webp)
 
 CCS can provision first-class local tools like WebSearch and image analysis for
-third-party launches instead of leaving you to wire them by hand. Deep dive:
-[WebSearch](https://docs.ccs.kaitran.ca/features/ai/websearch).
+third-party launches instead of leaving you to wire them by hand. Browser
+automation now has a first-class setup path as well. Deep dive:
+[WebSearch](https://docs.ccs.kaitran.ca/features/ai/websearch) |
+[Browser Automation](./docs/browser-automation.md).
 
 ## Docs Matrix
 
@@ -144,6 +146,7 @@ reference material.
 | Compare OAuth providers, Claude accounts, and API profiles | [Provider Overview](https://docs.ccs.kaitran.ca/providers/concepts/overview) |
 | Learn the dashboard structure and feature pages | [Dashboard Overview](https://docs.ccs.kaitran.ca/features/dashboard/overview) |
 | Configure profiles, paths, and environment variables | [Configuration](https://docs.ccs.kaitran.ca/getting-started/configuration) |
+| Understand browser attach vs Codex browser tooling | [Browser Automation](./docs/browser-automation.md) |
 | Keep OpenCode aligned with your live CCS setup | [OpenCode Sync Plugin](https://docs.ccs.kaitran.ca/features/workflow/opencode-sync) |
 | Browse every command and flag | [CLI Commands](https://docs.ccs.kaitran.ca/reference/cli-commands) |
 | Recover from install, auth, or provider failures | [Troubleshooting](https://docs.ccs.kaitran.ca/reference/troubleshooting) |
