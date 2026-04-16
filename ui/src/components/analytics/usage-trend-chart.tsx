@@ -46,7 +46,7 @@ export function UsageTrendChart({
     if (!data || data.length === 0) return [];
 
     // For hourly data, already sorted ascending from API
-    const sortedData = granularity === 'hourly' ? data : [...data].reverse();
+    const sortedData = data;
 
     return sortedData.map((item) => {
       // Handle hourly vs daily data format
