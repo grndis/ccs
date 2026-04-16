@@ -13,6 +13,7 @@ export { handleDockerCommand } from './docker-command';
 export { handleHelpCommand } from './help-command';
 export { handleInstallCommand } from './install-command';
 export { handleMigrateCommand } from './migrate-command';
+export { handleProxyCommand } from './proxy-command';
 export { handleShellCompletionCommand } from './shell-completion-command';
 export { handleSyncCommand } from './sync-command';
 export { handleUpdateCommand } from './update-command';

@@ -137,6 +137,13 @@ export const ROOT_COMMAND_ROUTES: readonly NamedCommandRoute[] = [
     },
   },
   {
+    name: 'proxy',
+    handle: async (args) => {
+      const { handleProxyCommand } = await import('./proxy-command');
+      process.exit(await handleProxyCommand(args));
+    },
+  },
+  {
     name: 'docker',
     handle: async (args) => {
       const { handleDockerCommand } = await import('./docker-command');

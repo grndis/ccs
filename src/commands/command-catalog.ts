@@ -109,6 +109,12 @@ export const ROOT_COMMAND_CATALOG: readonly RootCommandEntry[] = [
     visibility: 'public',
   },
   {
+    name: 'proxy',
+    summary: 'Start or inspect the OpenAI-compatible local proxy',
+    group: 'runtime',
+    visibility: 'public',
+  },
+  {
     name: 'copilot',
     summary: 'Run or manage the GitHub Copilot bridge',
     group: 'runtime',
@@ -255,6 +261,7 @@ export const CLIPROXY_SUBCOMMANDS = [
 ] as const;
 export const CONFIG_SUBCOMMANDS = ['auth', 'channels', 'image-analysis', 'thinking'] as const;
 export const DOCKER_SUBCOMMANDS = ['up', 'down', 'status', 'update', 'logs', 'config'] as const;
+export const PROXY_SUBCOMMANDS = ['start', 'stop', 'status', 'activate'] as const;
 export const TOKENS_FLAGS = [
   '--show',
   '--api-key',

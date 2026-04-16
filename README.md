@@ -50,6 +50,40 @@ ccs glm
 ccs ollama
 ```
 
+## OpenAI-Compatible Routing
+
+CCS can now bridge Claude Code into OpenAI-compatible providers through a local
+Anthropic-compatible proxy instead of requiring a native Anthropic upstream.
+
+```bash
+ccs api create --preset hf
+ccs hf
+```
+
+Need to manage the proxy manually?
+
+```bash
+ccs proxy start hf
+eval "$(ccs proxy activate)"
+```
+
+The proxy also supports request-time `profile:model` selectors, scenario-based
+model routing through `proxy.routing`, and explicit activation helpers such as
+`ccs proxy activate --fish`.
+
+Guide: [OpenAI-Compatible Provider Routing](./docs/openai-compatible-providers.md)
+
+### Related Project: claude-code-router
+
+[claude-code-router](https://github.com/musistudio/claude-code-router) is an
+excellent standalone tool for routing Claude Code requests to OpenAI-compatible
+providers. CCS's local proxy and SSE transformation work was directly informed
+by CCR's transformer architecture.
+
+Use CCR when you want a standalone router without CCS profile management.
+Use CCS when you want the routing flow integrated with CCS profiles, runtime
+bridges, and the existing `ccs` command surface.
+
 Need the full setup path instead of the short version?
 
 | Need | Start here |

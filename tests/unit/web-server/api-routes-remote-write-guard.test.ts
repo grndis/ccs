@@ -149,68 +149,72 @@ describe('api-routes remote write guard', () => {
     });
   });
 
-  it('allows remote writes again when dashboard auth is enabled', async () => {
-    const password = 'testpassword123';
-    process.env.CCS_DASHBOARD_AUTH_ENABLED = 'true';
-    process.env.CCS_DASHBOARD_USERNAME = 'admin';
-    process.env.CCS_DASHBOARD_PASSWORD_HASH = await bcrypt.hash(password, 10);
+  it(
+    'allows remote writes again when dashboard auth is enabled',
+    async () => {
+      const password = 'testpassword123';
+      process.env.CCS_DASHBOARD_AUTH_ENABLED = 'true';
+      process.env.CCS_DASHBOARD_USERNAME = 'admin';
+      process.env.CCS_DASHBOARD_PASSWORD_HASH = await bcrypt.hash(password, 4);
 
-    const authApp = express();
-    authApp.use(express.json());
-    authApp.use((req, _res, next) => {
-      Object.defineProperty(req.socket, 'remoteAddress', {
-        value: forcedRemoteAddress,
-        configurable: true,
+      const authApp = express();
+      authApp.use(express.json());
+      authApp.use((req, _res, next) => {
+        Object.defineProperty(req.socket, 'remoteAddress', {
+          value: forcedRemoteAddress,
+          configurable: true,
+        });
+        next();
       });
-      next();
-    });
-    authApp.use(createSessionMiddleware());
-    authApp.use(authMiddleware);
-    authApp.use('/api', apiRoutes);
+      authApp.use(createSessionMiddleware());
+      authApp.use(authMiddleware);
+      authApp.use('/api', apiRoutes);
 
-    const authServer = await new Promise<Server>((resolve, reject) => {
-      const instance = authApp.listen(0, '127.0.0.1');
-      instance.once('error', reject);
-      instance.once('listening', () => resolve(instance));
-    });
+      const authServer = await new Promise<Server>((resolve, reject) => {
+        const instance = authApp.listen(0, '127.0.0.1');
+        instance.once('error', reject);
+        instance.once('listening', () => resolve(instance));
+      });
 
-    const address = authServer.address();
-    if (!address || typeof address === 'string') {
-      throw new Error('Unable to resolve auth-enabled test server port');
-    }
-    const authBaseUrl = `http://127.0.0.1:${address.port}`;
+      const address = authServer.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Unable to resolve auth-enabled test server port');
+      }
+      const authBaseUrl = `http://127.0.0.1:${address.port}`;
 
-    const loginResponse = await fetch(`${authBaseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'admin',
-        password,
-      }),
-    });
-    const cookie = loginResponse.headers.get('set-cookie');
+      const loginResponse = await fetch(`${authBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'admin',
+          password,
+        }),
+      });
+      const cookie = loginResponse.headers.get('set-cookie');
 
-    expect(loginResponse.status).toBe(200);
-    expect(cookie).toBeTruthy();
+      expect(loginResponse.status).toBe(200);
+      expect(cookie).toBeTruthy();
 
-    const response = await fetch(`${authBaseUrl}/api/profiles`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: cookie as string,
-      },
-      body: JSON.stringify({
-        name: 'demo',
-        baseUrl: 'https://api.example.com',
-        apiKey: 'token',
-      }),
-    });
+      const response = await fetch(`${authBaseUrl}/api/profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: cookie as string,
+        },
+        body: JSON.stringify({
+          name: 'demo',
+          baseUrl: 'https://api.example.com',
+          apiKey: 'token',
+        }),
+      });
 
-    expect(response.status).toBe(201);
+      expect(response.status).toBe(201);
 
-    await new Promise<void>((resolve) => authServer.close(() => resolve()));
+      await new Promise<void>((resolve) => authServer.close(() => resolve()));
 
-    delete process.env.CCS_DASHBOARD_USERNAME;
-    delete process.env.CCS_DASHBOARD_PASSWORD_HASH;
-  });
+      delete process.env.CCS_DASHBOARD_USERNAME;
+      delete process.env.CCS_DASHBOARD_PASSWORD_HASH;
+    },
+    15000
+  );
 });

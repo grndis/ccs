@@ -99,6 +99,11 @@ import {
 } from './targets/droid-reasoning-runtime';
 import { DroidCommandRouterError, routeDroidCommandArgs } from './targets/droid-command-router';
 import { resolveCliproxyBridgeMetadata } from './api/services/cliproxy-profile-bridge';
+import {
+  buildOpenAICompatProxyEnv,
+  resolveOpenAICompatProfileConfig,
+  startOpenAICompatProxy,
+} from './proxy';
 
 // Version and Update check utilities
 import { getVersion } from './utils/version';
@@ -1351,6 +1356,53 @@ async function main(): Promise<void> {
       const browserArgs = browserRuntimeEnv
         ? appendBrowserToolArgs(imageAnalysisArgs)
         : imageAnalysisArgs;
+      const openAICompatProfile = resolveOpenAICompatProfileConfig(
+        profileInfo.name,
+        expandedSettingsPath,
+        settingsEnv
+      );
+      if (openAICompatProfile) {
+        const proxyStart = await startOpenAICompatProxy(openAICompatProfile, {
+          insecure: openAICompatProfile.insecure,
+        });
+        if (!proxyStart.success) {
+          console.error(fail(proxyStart.error || 'Failed to start local OpenAI-compatible proxy'));
+          process.exit(1);
+        }
+
+        console.error(
+          info(
+            `Using local OpenAI-compatible proxy for "${profileInfo.name}" on port ${proxyStart.port}`
+          )
+        );
+
+        const proxyEnv = {
+          ...envVars,
+          ...buildOpenAICompatProxyEnv(
+            openAICompatProfile,
+            proxyStart.port,
+            proxyStart.authToken || '',
+            inheritedClaudeConfigDir
+          ),
+        };
+        delete proxyEnv.ANTHROPIC_API_KEY;
+
+        const launchArgs = [
+          '--settings',
+          expandedSettingsPath,
+          ...appendThirdPartyWebSearchToolArgs(browserArgs),
+        ];
+        const traceEnv = createWebSearchTraceContext({
+          launcher: 'ccs.settings-profile.proxy',
+          args: launchArgs,
+          profile: profileInfo.name,
+          profileType: profileInfo.type,
+          settingsPath: expandedSettingsPath,
+        });
+
+        execClaude(claudeCli, launchArgs, { ...proxyEnv, ...traceEnv });
+        return;
+      }
       const launchArgs = [
         '--settings',
         expandedSettingsPath,

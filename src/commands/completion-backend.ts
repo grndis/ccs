@@ -11,6 +11,7 @@ import {
   ROOT_COMMAND_FLAGS,
   ROOT_HELP_TOPICS,
   TOKENS_FLAGS,
+  PROXY_SUBCOMMANDS,
   PROVIDER_FLAGS,
   uniqueStrings,
   getPublicRootCommandTokens,
@@ -189,6 +190,13 @@ function getSuggestionsForCommand(tokensBeforeCurrent: string[]): CompletionSugg
       return completeSubcommands([], COMMAND_FLAG_SUGGESTIONS.docker);
     case 'cursor':
       return completeSubcommands(CURSOR_COMPLETION_SUBCOMMANDS);
+    case 'proxy':
+      if (lastToken === '--shell')
+        return completeSubcommands(['auto', 'bash', 'zsh', 'fish', 'powershell']);
+      return completeSubcommands(
+        [...PROXY_SUBCOMMANDS],
+        ['--port', '--shell', '--insecure', '--help', '-h']
+      );
     case 'copilot':
       return completeSubcommands(COPILOT_COMPLETION_SUBCOMMANDS);
     case 'env':
