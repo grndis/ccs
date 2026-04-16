@@ -114,6 +114,10 @@ interface ManagedResponse {
   viaManagement: boolean;
 }
 
+function getRemainingTimeoutMs(deadlineMs: number): number {
+  return Math.max(1, deadlineMs - Date.now());
+}
+
 /**
  * Extract project ID from account field
  * Input: "user@example.com (cloudaicompanion-abc-123)"
@@ -235,10 +239,13 @@ function isGeminiAuthFileForAccount(file: ManagementAuthFile, accountId: string)
   );
 }
 
-async function findManagedGeminiAuthIndex(accountId: string): Promise<string | number | null> {
+async function findManagedGeminiAuthIndex(
+  accountId: string,
+  timeoutMs: number
+): Promise<string | number | null> {
   const target = getProxyTarget();
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MANAGEMENT_API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(buildProxyUrl(target, '/v0/management/auth-files'), {
@@ -263,16 +270,17 @@ async function findManagedGeminiAuthIndex(accountId: string): Promise<string | n
 async function performManagedGeminiRequest(
   accountId: string,
   url: string,
-  body: string
+  body: string,
+  timeoutMs: number
 ): Promise<ManagedResponse | null> {
-  const authIndex = await findManagedGeminiAuthIndex(accountId);
+  const authIndex = await findManagedGeminiAuthIndex(accountId, timeoutMs);
   if (authIndex === null || authIndex === undefined) {
     return null;
   }
 
   const target = getProxyTarget();
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MANAGEMENT_API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(buildProxyUrl(target, '/v0/management/api-call'), {
@@ -319,15 +327,24 @@ async function performGeminiCliRequest(
   body: string,
   preferManagement = false
 ): Promise<ManagedResponse> {
+  const deadlineMs = Date.now() + MANAGEMENT_API_TIMEOUT_MS;
+  let managementAttempted = false;
+
   if (preferManagement) {
-    const managedResult = await performManagedGeminiRequest(accountId, url, body);
+    managementAttempted = true;
+    const managedResult = await performManagedGeminiRequest(
+      accountId,
+      url,
+      body,
+      getRemainingTimeoutMs(deadlineMs)
+    );
     if (managedResult) {
       return managedResult;
     }
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), MANAGEMENT_API_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), getRemainingTimeoutMs(deadlineMs));
 
   try {
     const response = await fetch(url, {
@@ -346,7 +363,16 @@ async function performGeminiCliRequest(
       return directResult;
     }
 
-    const managedResult = await performManagedGeminiRequest(accountId, url, body);
+    if (managementAttempted) {
+      return directResult;
+    }
+
+    const managedResult = await performManagedGeminiRequest(
+      accountId,
+      url,
+      body,
+      getRemainingTimeoutMs(deadlineMs)
+    );
     return managedResult ?? directResult;
   } catch (error) {
     clearTimeout(timeoutId);

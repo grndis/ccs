@@ -714,6 +714,7 @@ describe('Gemini CLI Quota Fetcher', () => {
       expect(managedLookupRequest.url).toBe(MANAGEMENT_AUTH_FILES_URL);
       expect(managedQuotaRequest.url).toBe(MANAGEMENT_API_CALL_URL);
       expect(managedQuotaRequest.body).toContain('"auth_index":"target-auth-index"');
+      expect(managedQuotaRequest.body).toContain('"Authorization":"Bearer $TOKEN$"');
       expect(managedQuotaRequest.body).not.toContain('default-refresh-token');
     });
 
@@ -819,6 +820,80 @@ describe('Gemini CLI Quota Fetcher', () => {
         expect(quotaAttempt).toBe(1);
         expect(managedLookupAttempt).toBe(1);
         expect(managedRequestAttempt).toBe(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('does not retry the management API twice when the preferred managed path already failed', async () => {
+      writeGeminiToken(
+        {
+          type: 'gemini',
+          email: 'managed-failure@example.com',
+          project_id: 'managed-failure-project',
+          token: {
+            access_token: 'expired-token',
+            refresh_token: 'refresh-token',
+            expiry: Date.now() - 1000,
+          },
+        },
+        'gemini-managed-failure.json'
+      );
+
+      mockFetch([
+        {
+          url: GEMINI_CODE_ASSIST_URL,
+          method: 'POST',
+          status: 503,
+          response: { error: { message: 'supplementary unavailable' } },
+        },
+      ]);
+
+      const originalFetch = globalThis.fetch;
+      let directQuotaAttempt = 0;
+      let managedLookupAttempt = 0;
+      let managedRequestAttempt = 0;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+
+        if (url === MANAGEMENT_AUTH_FILES_URL) {
+          managedLookupAttempt += 1;
+          return new Response('lookup unavailable', { status: 503 });
+        }
+
+        if (url === MANAGEMENT_API_CALL_URL) {
+          managedRequestAttempt += 1;
+          return new Response('should not be called', { status: 500 });
+        }
+
+        if (url === GEMINI_QUOTA_URL) {
+          directQuotaAttempt += 1;
+          return new Response(
+            JSON.stringify({
+              error: {
+                message: 'Session expired',
+                status: 'UNAUTHENTICATED',
+              },
+            }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+        }
+
+        return originalFetch(input, init);
+      }) as typeof fetch;
+
+      try {
+        const result = await fetchGeminiCliQuota('managed-failure@example.com');
+
+        expect(result.success).toBe(false);
+        expect(result.needsReauth).toBe(true);
+        expect(directQuotaAttempt).toBe(1);
+        expect(managedLookupAttempt).toBe(1);
+        expect(managedRequestAttempt).toBe(0);
       } finally {
         globalThis.fetch = originalFetch;
       }
