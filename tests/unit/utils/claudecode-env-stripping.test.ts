@@ -266,6 +266,7 @@ describe('CLAUDECODE environment stripping', () => {
     expect(spawnCalls.length).toBeGreaterThan(0);
     const env = spawnCalls[0].options?.env as NodeJS.ProcessEnv;
     expect(Object.keys(env).map((k) => k.toUpperCase())).not.toContain('CLAUDECODE');
+    expect(spawnCalls[0].options?.shell).toBe('cmd.exe');
   });
 
   it('execClaude sets DISABLE_AUTOUPDATER=1 when preferences.auto_update is false', () => {

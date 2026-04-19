@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import { expandPath } from '../utils/helpers';
-import { escapeShellArg } from '../utils/shell-executor';
+import { escapeShellArg, getWindowsEscapedCommandShell } from '../utils/shell-executor';
 import type { TargetBinaryInfo } from './target-adapter';
 
 const CODEX_CONFIG_OVERRIDE_FEATURE = 'config-overrides';
@@ -58,7 +58,7 @@ function runCodexProbe(codexPath: string, args: string[]): string | undefined {
         stdio: ['ignore', 'pipe', 'ignore'],
         timeout: 5000,
         windowsHide: true,
-        shell: 'cmd.exe',
+        shell: getWindowsEscapedCommandShell(),
       });
       return result.status === 0 ? result.stdout : undefined;
     }

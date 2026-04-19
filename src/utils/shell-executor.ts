@@ -108,6 +108,16 @@ export function escapeShellArg(arg: string): string {
 }
 
 /**
+ * Return the Windows shell that matches escapeShellArg() quoting semantics.
+ *
+ * `shell: true` is not strict enough for npm `.cmd` wrappers because Node may
+ * route through a different quoting path than the one escapeShellArg() expects.
+ */
+export function getWindowsEscapedCommandShell(): string {
+  return 'cmd.exe';
+}
+
+/**
  * Execute Claude CLI with unified spawn logic
  */
 export function execClaude(
@@ -182,7 +192,7 @@ export function execClaude(
     child = spawn(cmdString, {
       stdio: 'inherit',
       windowsHide: true,
-      shell: true,
+      shell: getWindowsEscapedCommandShell(),
       env,
     });
   } else {

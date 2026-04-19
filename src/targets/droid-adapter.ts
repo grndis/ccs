@@ -12,7 +12,11 @@ import { getDroidBinaryInfo, detectDroidCli, checkDroidVersion } from './droid-d
 import type { ProfileType } from '../types/profile';
 import { upsertCcsModel } from './droid-config-manager';
 import { resolveDroidProvider } from './droid-provider';
-import { escapeShellArg, stripAnthropicEnv } from '../utils/shell-executor';
+import {
+  escapeShellArg,
+  getWindowsEscapedCommandShell,
+  stripAnthropicEnv,
+} from '../utils/shell-executor';
 import { wireChildProcessSignals } from '../utils/signal-forwarder';
 import { runCleanup } from '../errors';
 
@@ -134,7 +138,7 @@ export class DroidAdapter implements TargetAdapter {
       child = spawn(cmdString, {
         stdio: 'inherit',
         windowsHide: true,
-        shell: true,
+        shell: getWindowsEscapedCommandShell(),
         env,
       });
     } else {

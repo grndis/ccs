@@ -9,7 +9,12 @@ import { spawn, ChildProcess } from 'child_process';
 import { TargetAdapter, TargetBinaryInfo, TargetCredentials, TargetType } from './target-adapter';
 import { detectClaudeCli, getClaudeCliInfo } from '../utils/claude-detector';
 import type { ProfileType } from '../types/profile';
-import { escapeShellArg, stripAnthropicEnv, stripClaudeCodeEnv } from '../utils/shell-executor';
+import {
+  escapeShellArg,
+  getWindowsEscapedCommandShell,
+  stripAnthropicEnv,
+  stripClaudeCodeEnv,
+} from '../utils/shell-executor';
 import { ErrorManager } from '../utils/error-manager';
 import { getWebSearchHookEnv } from '../utils/websearch-manager';
 import { appendBrowserToolArgs } from '../utils/browser';
@@ -111,7 +116,7 @@ export class ClaudeAdapter implements TargetAdapter {
       child = spawn(cmdString, {
         stdio: 'inherit',
         windowsHide: true,
-        shell: true,
+        shell: getWindowsEscapedCommandShell(),
         env,
       });
     } else {

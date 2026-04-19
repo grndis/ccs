@@ -4,7 +4,12 @@ import type { ProfileType } from '../types/profile';
 import { runCleanup } from '../errors';
 import { expandPath } from '../utils/helpers';
 import { wireChildProcessSignals } from '../utils/signal-forwarder';
-import { escapeShellArg, stripAnthropicEnv, stripCodexSessionEnv } from '../utils/shell-executor';
+import {
+  escapeShellArg,
+  getWindowsEscapedCommandShell,
+  stripAnthropicEnv,
+  stripCodexSessionEnv,
+} from '../utils/shell-executor';
 import type {
   TargetAdapter,
   TargetBinaryInfo,
@@ -316,7 +321,7 @@ export class CodexAdapter implements TargetAdapter {
       child = spawn(cmdString, {
         stdio: 'inherit',
         windowsHide: true,
-        shell: true,
+        shell: getWindowsEscapedCommandShell(),
         env: launchEnv,
       });
     } else {
