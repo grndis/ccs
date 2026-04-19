@@ -214,4 +214,75 @@ describe('openai proxy request routing', () => {
     expect(hits).toEqual(['thinker']);
     expect(bodies[0]?.body).toMatchObject({ model: 'deepseek-reasoner' });
   });
+
+  it('routes adaptive thinking requests through the configured think scenario', async () => {
+    const primaryPort = await getPort();
+    const thinkPort = await getPort();
+    const hits: string[] = [];
+    const bodies: Array<{ label: string; body: unknown }> = [];
+    await startMockUpstream(primaryPort, 'primary', hits, bodies);
+    await startMockUpstream(thinkPort, 'thinker', hits, bodies);
+
+    const primarySettings = writeSettings('hf', {
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${primaryPort}`,
+      ANTHROPIC_AUTH_TOKEN: 'hf_token',
+      ANTHROPIC_MODEL: 'hf-default',
+      CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+    });
+    const thinkSettings = writeSettings('thinker', {
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${thinkPort}`,
+      ANTHROPIC_AUTH_TOKEN: 'think_token',
+      ANTHROPIC_MODEL: 'deepseek-reasoner',
+      CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+    });
+
+    fs.writeFileSync(
+      path.join(tempDir, '.ccs', 'config.json'),
+      JSON.stringify(
+        {
+          profiles: { hf: primarySettings, thinker: thinkSettings },
+          proxy: {
+            routing: {
+              think: 'thinker:deepseek-reasoner',
+            },
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    const profile: OpenAICompatProfileConfig = {
+      profileName: 'hf',
+      settingsPath: primarySettings,
+      baseUrl: `http://127.0.0.1:${primaryPort}`,
+      apiKey: 'hf_token',
+      provider: 'generic-chat-completion-api',
+      model: 'hf-default',
+    };
+    proxyServer = startOpenAICompatProxyServer({
+      profile,
+      port: proxyPort,
+      authToken: 'test-proxy-token',
+    });
+
+    const response = await requestProxy({
+      model: 'hf-default',
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'max' },
+      messages: [{ role: 'user', content: 'think adaptively' }],
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      content: [{ type: 'text', text: 'Reply from thinker' }],
+    });
+    expect(hits).toEqual(['thinker']);
+    expect(bodies[0]?.body).toMatchObject({
+      model: 'deepseek-reasoner',
+      reasoning_effort: 'high',
+      reasoning: { enabled: true, effort: 'high' },
+    });
+  });
 });

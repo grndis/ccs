@@ -116,11 +116,61 @@ describe('openai proxy messages endpoint', () => {
 
     const parsedUpstream = upstreamBody as {
       messages?: Array<{ role: string; content: string }>;
+      tool_choice?: unknown;
       tools?: Array<{ type: string; function: { name: string } }>;
     };
     expect(parsedUpstream.messages?.[0]).toEqual({ role: 'user', content: 'Find docs' });
+    expect(parsedUpstream.tool_choice).toBe('auto');
     expect(parsedUpstream.tools?.[0]?.type).toBe('function');
     expect(parsedUpstream.tools?.[0]?.function.name).toBe('search');
+  });
+
+  it('preserves tool schemas and forwards explicit tool_choice semantics upstream', async () => {
+    const response = await requestProxy({
+      model: 'hf-model',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Search docs' }] }],
+      tools: [
+        {
+          name: 'search',
+          description: 'Search docs',
+          input_schema: {
+            type: 'object',
+            properties: {
+              q: { type: 'string', pattern: '^[a-z]+$' },
+            },
+            required: ['q'],
+            additionalProperties: true,
+          },
+        },
+      ],
+      tool_choice: {
+        type: 'tool',
+        name: 'search',
+        disable_parallel_tool_use: true,
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    const parsedUpstream = upstreamBody as {
+      tool_choice?: unknown;
+      parallel_tool_calls?: boolean;
+      tools?: Array<{ type: string; function: { parameters: Record<string, unknown> } }>;
+    };
+
+    expect(parsedUpstream.tool_choice).toEqual({
+      type: 'function',
+      function: { name: 'search' },
+    });
+    expect(parsedUpstream.parallel_tool_calls).toBe(false);
+    expect(parsedUpstream.tools?.[0]?.function.parameters).toEqual({
+      type: 'object',
+      properties: {
+        q: { type: 'string', pattern: '^[a-z]+$' },
+      },
+      required: ['q'],
+      additionalProperties: true,
+    });
   });
 
   it('falls back to Anthropic JSON for non-streaming requests', async () => {
@@ -153,6 +203,24 @@ describe('openai proxy messages endpoint', () => {
     expect(response.status).toBe(400);
     expect(body.error?.type).toBe('invalid_request_error');
     expect(body.error?.message).toContain('Invalid JSON');
+  });
+
+  it('returns invalid_request_error for orphan tool_result blocks', async () => {
+    const response = await requestProxy({
+      model: 'hf-model',
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'toolu_orphan', content: 'orphan' }],
+        },
+      ],
+    });
+
+    const body = (await response.json()) as { error?: { type?: string; message?: string } };
+
+    expect(response.status).toBe(400);
+    expect(body.error?.type).toBe('invalid_request_error');
+    expect(body.error?.message).toContain('tool_result requires a preceding assistant tool_use');
   });
 
   it('rejects requests without the local proxy auth token', async () => {
