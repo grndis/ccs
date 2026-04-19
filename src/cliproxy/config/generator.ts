@@ -8,6 +8,7 @@ import * as path from 'path';
 import type { CLIProxyProvider, ProviderConfig } from '../types';
 import { getProviderDisplayName } from '../provider-capabilities';
 import { getModelMappingFromConfig } from '../base-config-loader';
+import { AI_PROVIDER_FAMILY_IDS } from '../ai-providers/types';
 import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import { getEffectiveApiKey, getEffectiveManagementSecret } from '../auth-token-manager';
 import { getDeniedModelIdReasonForProvider } from '../model-id-normalizer';
@@ -45,6 +46,11 @@ export const CLIPROXY_CONFIG_VERSION = 17;
 interface RegenerateConfigOptions {
   configPath?: string;
   authDir?: string;
+}
+
+interface PreservedYamlSection {
+  key: string;
+  body: string;
 }
 
 interface OAuthModelAliasEntry {
@@ -754,8 +760,8 @@ export function regenerateConfig(
   // Preserve user settings from existing config
   let effectivePort = port;
   let userApiKeys: string[] = [];
-  let claudeApiKeySection = '';
   let existingAliases = '';
+  const preservedSections: PreservedYamlSection[] = [];
 
   if (fs.existsSync(configPath)) {
     try {
@@ -770,8 +776,16 @@ export function regenerateConfig(
       // Preserve user-added API keys (fix for issue #200)
       userApiKeys = parseUserApiKeys(content);
 
-      // Preserve claude-api-key section (managed via dashboard/API)
-      claudeApiKeySection = extractYamlSection(content, 'claude-api-key');
+      // Preserve AI provider sections managed outside the generated defaults.
+      for (const familyId of AI_PROVIDER_FAMILY_IDS) {
+        const sectionBody = extractYamlSection(content, familyId);
+        if (sectionBody) {
+          preservedSections.push({
+            key: familyId,
+            body: sectionBody,
+          });
+        }
+      }
 
       // Preserve user customizations while pruning legacy generated Gemini preview noise.
       const existingConfigVersion = getConfigVersionFromContent(content);
@@ -801,9 +815,9 @@ export function regenerateConfig(
   // Generate fresh config with preserved user API keys and aliases
   let configContent = generateUnifiedConfigContent(effectivePort, userApiKeys, existingAliases);
 
-  // Re-append claude-api-key section if it existed
-  if (claudeApiKeySection) {
-    configContent += `claude-api-key:\n${claudeApiKeySection}\n`;
+  // Re-append managed top-level sections that are not part of the generated defaults.
+  for (const section of preservedSections) {
+    configContent += `${section.key}:\n${section.body}\n`;
   }
 
   fs.writeFileSync(configPath, configContent, { mode: 0o600 });

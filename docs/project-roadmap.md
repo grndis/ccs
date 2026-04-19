@@ -1,6 +1,6 @@
 # CCS Project Roadmap
 
-Last Updated: 2026-04-14
+Last Updated: 2026-04-18
 
 Forward-looking roadmap documenting current priorities, GitHub issues, and future feature plans.
 
@@ -41,6 +41,7 @@ All major modularization work is complete. The codebase evolved from monolithic 
 
 ### Recent Fixes
 
+- **2026-04-18**: **#1038** Legacy OpenAI-compatible provider writes no longer self-destruct on the next `ccs cliproxy restart`. CCS now preserves AI-provider-managed top-level sections such as `openai-compatibility` during CLIProxy config regeneration, and the legacy `openai-compat` manager now rewrites only its own YAML section instead of dumping the whole file and stripping the generated version header. Regression coverage now proves the legacy helper keeps the generated header intact and that OpenAI-compatible connectors survive regeneration.
 - **2026-04-16**: **#1030** Browser automation is now a first-class CCS surface instead of an env-only/runtime-only feature. CCS adds `ccs help browser`, `ccs browser status`, and `ccs browser doctor`; a dedicated `Settings -> Browser` dashboard tab for Claude Browser Attach and Codex Browser Tools; a new `browser` section in `~/.ccs/config.yaml`; explicit readiness/next-step messaging for attach-mode Chrome sessions; and Codex UI guidance that marks the managed `ccs_browser` entry as CCS-owned and redirects browser setup away from the generic MCP editor.
 - **2026-04-15**: **#969** Local CLIProxy bootstrap no longer depends on live GitHub reachability during normal dashboard and runtime startup. CCS now skips hidden auto-update lookups on standard CLIProxy bootstrap paths, fails fast with explicit `ccs cliproxy install` guidance when a service start needs a binary that is not installed locally, and keeps `ccs config` able to open the dashboard in limited mode instead of stalling behind blocked release downloads.
 - **2026-04-15**: **#1010** Remote dashboard auth guidance now explains the Docker boundary explicitly. The readonly banner, remote login/setup card, and dashboard-auth docs now tell users that integrated Docker deployments keep config inside the running `ccs-cliproxy` container volume, so `ccs config auth setup` must run there rather than in the outer host shell.
