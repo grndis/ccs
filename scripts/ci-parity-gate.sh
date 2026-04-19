@@ -15,6 +15,17 @@ if [[ ! -f AGENTS.md ]]; then
   exit 1
 fi
 
+TRACKED_PLANS="$(git ls-files -- plans)"
+if [[ -n "$TRACKED_PLANS" ]]; then
+  echo "[X] Tracked files found under plans/."
+  echo "    plans/ is workspace-only and must stay ignored."
+  while IFS= read -r tracked_path; do
+    echo "    $tracked_path"
+  done <<< "$TRACKED_PLANS"
+  echo "    Remove them from the index with: git rm -r --cached plans"
+  exit 1
+fi
+
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [[ -z "$CURRENT_BRANCH" || "$CURRENT_BRANCH" == "HEAD" ]]; then
   echo "[i] Detached HEAD detected. Skipping pre-push CI parity gate."
