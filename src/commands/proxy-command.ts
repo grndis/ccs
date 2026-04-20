@@ -22,6 +22,10 @@ function parseOptionValue(args: string[], key: string): string | undefined {
   return withEquals ? withEquals.slice(prefix.length) : undefined;
 }
 
+function hasHelpFlag(args: string[]): boolean {
+  return args.includes('--help') || args.includes('-h');
+}
+
 export function findPositionalArg(
   args: string[],
   optionsWithValues: string[] = []
@@ -83,6 +87,9 @@ function resolveProfile(profileName: string) {
 }
 
 async function handleStart(args: string[]): Promise<number> {
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
   const profileName = findPositionalArg(args, ['--port', '--host']);
   if (!profileName) {
     console.error(
@@ -122,6 +129,9 @@ async function handleStart(args: string[]): Promise<number> {
 }
 
 async function handleStatus(args: string[] = []): Promise<number> {
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
   const profileName = findPositionalArg(args);
   const running = profileName
     ? [await getOpenAICompatProxyStatus(profileName)].filter((status) => status.running)
@@ -150,6 +160,9 @@ async function handleStatus(args: string[] = []): Promise<number> {
 }
 
 async function handleActivate(args: string[]): Promise<number> {
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
   const profileName = findPositionalArg(args, ['--shell']);
   if (!profileName) {
     const running = (await listOpenAICompatProxyStatuses()).filter((entry) => entry.running);
@@ -199,6 +212,9 @@ export async function handleProxyCommand(args: string[]): Promise<number> {
     case 'start':
       return handleStart(args.slice(1));
     case 'stop': {
+      if (hasHelpFlag(args.slice(1))) {
+        return showHelp();
+      }
       const profileName = args[1] && !args[1].startsWith('-') ? args[1] : undefined;
       const result = await stopOpenAICompatProxy(profileName);
       if (!result.success) {

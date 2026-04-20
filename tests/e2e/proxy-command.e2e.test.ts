@@ -45,6 +45,13 @@ afterEach(() => {
 });
 
 describe('proxy command e2e', () => {
+  it('shows help for subcommand help flags without executing the subcommand', () => {
+    const help = runCli(['proxy', 'stop', '--help']);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('Usage: ccs proxy <start|stop|status|activate> [profile] [options]');
+    expect(help.stdout).toContain('stop [profile]    Stop the running proxy (or all proxies when omitted)');
+  });
+
   it('starts, reports status, activates, and stops via the built CLI', async () => {
     const port = await getPort();
     const ccsDir = path.join(tempDir, '.ccs');
