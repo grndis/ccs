@@ -319,4 +319,94 @@ describe('openai proxy messages endpoint', () => {
     expect(body.ok).toBe(true);
     expect(body.endpoints).toContain('/v1/messages');
   });
+
+  it('translates user messages with tool_result followed by text', async () => {
+    const response = await requestProxy({
+      model: 'hf-model',
+      stream: false,
+      messages: [
+        { role: 'user', content: 'search docs' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Let me search.' },
+            { type: 'tool_use', id: 'toolu_01', name: 'search', input: { q: 'docs' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'toolu_01', content: 'found 3 docs' },
+            { type: 'text', text: 'What should I do next?' },
+          ],
+        },
+      ],
+    });
+
+    expect(response.status).toBe(200);
+    const parsedUpstream = upstreamBody as {
+      messages?: Array<{ role: string; content: string; tool_call_id?: string }>;
+    };
+    const roles = parsedUpstream.messages?.map((m) => m.role);
+    expect(roles).toEqual(['user', 'assistant', 'tool', 'user']);
+    const toolMsg = parsedUpstream.messages?.find((m) => m.role === 'tool');
+    expect(toolMsg?.tool_call_id).toBe('toolu_01');
+    expect(toolMsg?.content).toBe('found 3 docs');
+    const userAfterTool = parsedUpstream.messages?.filter((m) => m.role === 'user');
+    expect(userAfterTool?.[1]?.content).toBe('What should I do next?');
+  });
+
+  it('translates parallel tool calls with streaming', async () => {
+    const response = await requestProxy({
+      model: 'hf-model',
+      stream: true,
+      messages: [
+        { role: 'user', content: 'read both files' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'toolu_01', name: 'Read', input: { file_path: 'a.ts' } },
+            { type: 'tool_use', id: 'toolu_02', name: 'Read', input: { file_path: 'b.ts' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'toolu_01', content: 'content of a' },
+            { type: 'tool_result', tool_use_id: 'toolu_02', content: 'content of b' },
+            { type: 'text', text: 'Now compare them' },
+          ],
+        },
+      ],
+      tools: [
+        {
+          name: 'Read',
+          description: 'Read a file',
+          input_schema: {
+            type: 'object',
+            properties: { file_path: { type: 'string' } },
+            required: ['file_path'],
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(200);
+    const parsedUpstream = upstreamBody as {
+      messages?: Array<{
+        role: string;
+        content: string;
+        tool_call_id?: string;
+        tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+      }>;
+    };
+    const assistantMsg = parsedUpstream.messages?.find((m) => m.role === 'assistant');
+    expect(assistantMsg?.tool_calls?.length).toBe(2);
+    expect(assistantMsg?.tool_calls?.[0]?.function.name).toBe('Read');
+    expect(assistantMsg?.tool_calls?.[1]?.function.name).toBe('Read');
+    const toolMsgs = parsedUpstream.messages?.filter((m) => m.role === 'tool');
+    expect(toolMsgs?.length).toBe(2);
+    expect(toolMsgs?.[0]?.tool_call_id).toBe('toolu_01');
+    expect(toolMsgs?.[1]?.tool_call_id).toBe('toolu_02');
+  });
 });

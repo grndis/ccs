@@ -5,15 +5,20 @@
  * - Process tool call deltas from OpenAI
  * - Generate tool_use content blocks for Anthropic format
  * - Handle input_json_delta events
+ * - Close previous tool_use blocks before starting new ones (Anthropic sequential block requirement)
  */
 
 import type { DeltaAccumulator } from '../delta-accumulator';
 import type { OpenAIToolCallDelta, OpenAIToolCall, ContentBlock, AnthropicSSEEvent } from './types';
+import { ResponseBuilder } from './response-builder';
 
 export class ToolCallHandler {
-  /**
-   * Process tool calls from non-streaming response
-   */
+  private responseBuilder: ResponseBuilder;
+
+  constructor() {
+    this.responseBuilder = new ResponseBuilder(false);
+  }
+
   processToolCalls(toolCalls: OpenAIToolCall[]): ContentBlock[] {
     const content: ContentBlock[] = [];
 
@@ -38,10 +43,6 @@ export class ToolCallHandler {
     return content;
   }
 
-  /**
-   * Process tool call deltas during streaming
-   * Returns events for tool use blocks and input_json deltas
-   */
   processToolCallDeltas(
     toolCallDeltas: OpenAIToolCallDelta[],
     accumulator: DeltaAccumulator
@@ -49,15 +50,19 @@ export class ToolCallHandler {
     const events: AnthropicSSEEvent[] = [];
 
     for (const toolCallDelta of toolCallDeltas) {
-      // Track tool call state
       const isNewToolCall = !accumulator.hasToolCall(toolCallDelta.index);
       accumulator.addToolCallDelta(toolCallDelta);
 
-      // Emit tool use events (start + input_json deltas)
       if (isNewToolCall) {
-        // Start new tool_use block in accumulator
+        const previousBlock = accumulator.getCurrentBlock();
+        if (previousBlock && previousBlock.type === 'tool_use' && !previousBlock.stopped) {
+          events.push(this.responseBuilder.createContentBlockStopEvent(previousBlock));
+          previousBlock.stopped = true;
+        }
+
         const block = accumulator.startBlock('tool_use');
         const toolCall = accumulator.getToolCall(toolCallDelta.index);
+        accumulator.setToolCallBlockIndex(toolCallDelta.index, block.index);
 
         events.push({
           event: 'content_block_start',
@@ -68,27 +73,25 @@ export class ToolCallHandler {
               type: 'tool_use',
               id: toolCall?.id || `tool_${toolCallDelta.index}`,
               name: toolCall?.function?.name || '',
+              input: {},
             },
           },
         });
       }
 
-      // Emit input_json delta if arguments present
       if (toolCallDelta.function?.arguments) {
-        const currentToolBlock = accumulator.getCurrentBlock();
-        if (currentToolBlock && currentToolBlock.type === 'tool_use') {
-          events.push({
-            event: 'content_block_delta',
-            data: {
-              type: 'content_block_delta',
-              index: currentToolBlock.index,
-              delta: {
-                type: 'input_json_delta',
-                partial_json: toolCallDelta.function.arguments,
-              },
+        const toolCallBlockIndex = accumulator.getToolCallBlockIndex(toolCallDelta.index);
+        events.push({
+          event: 'content_block_delta',
+          data: {
+            type: 'content_block_delta',
+            index: toolCallBlockIndex,
+            delta: {
+              type: 'input_json_delta',
+              partial_json: toolCallDelta.function.arguments,
             },
-          });
-        }
+          },
+        });
       }
     }
 

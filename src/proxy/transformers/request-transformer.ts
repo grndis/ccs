@@ -457,8 +457,7 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
     }
 
     if (role === 'user') {
-      const userParts: OpenAIContentPart[] = [];
-      let sawToolResult = false;
+      const preToolResultParts: OpenAIContentPart[] = [];
       const resolvedToolUseIds = new Set<string>();
 
       content.forEach((block, blockIndex) => {
@@ -472,23 +471,26 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
         }
 
         if (parsed.type === 'text') {
-          if (sawToolResult) {
-            throw new Error(
-              `messages[${messageIndex}].content[${blockIndex}] text is not allowed after tool_result blocks`
-            );
-          }
           const text = typeof parsed.text === 'string' ? parsed.text : '';
-          userParts.push({ type: 'text', text });
+          if (pendingToolUseIds && pendingToolUseIds.size > 0 && !resolvedToolUseIds.size) {
+            preToolResultParts.push({ type: 'text', text });
+          } else {
+            translatedMessages.push({ role: 'user', content: text });
+          }
           return;
         }
 
         if (isImageBlock(parsed)) {
-          if (sawToolResult) {
-            throw new Error(
-              `messages[${messageIndex}].content[${blockIndex}] image is not allowed after tool_result blocks`
+          if (pendingToolUseIds && pendingToolUseIds.size > 0 && !resolvedToolUseIds.size) {
+            preToolResultParts.push(
+              toImagePart(parsed, `messages[${messageIndex}].content[${blockIndex}]`)
             );
+          } else {
+            translatedMessages.push({
+              role: 'user',
+              content: [toImagePart(parsed, `messages[${messageIndex}].content[${blockIndex}]`)],
+            });
           }
-          userParts.push(toImagePart(parsed, `messages[${messageIndex}].content[${blockIndex}]`));
           return;
         }
 
@@ -496,11 +498,6 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
           if (!pendingToolUseIds || pendingToolUseIds.size === 0) {
             throw new Error(
               `messages[${messageIndex}].content[${blockIndex}] tool_result requires a preceding assistant tool_use`
-            );
-          }
-          if (userParts.length > 0) {
-            throw new Error(
-              `messages[${messageIndex}].content[${blockIndex}] tool_result blocks must come before other user content`
             );
           }
           if (typeof parsed.tool_use_id !== 'string' || parsed.tool_use_id.trim().length === 0) {
@@ -518,7 +515,6 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
               `messages[${messageIndex}].content[${blockIndex}].tool_use_id "${parsed.tool_use_id}" is duplicated`
             );
           }
-          sawToolResult = true;
           resolvedToolUseIds.add(parsed.tool_use_id);
           translatedMessages.push({
             role: 'tool',
@@ -543,7 +539,7 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
         );
       });
 
-      if (sawToolResult) {
+      if (resolvedToolUseIds.size > 0) {
         if (resolvedToolUseIds.size !== pendingToolUseIds?.size) {
           throw new Error(
             `messages[${messageIndex}].content must provide tool_result blocks for all pending tool_use ids`
@@ -551,17 +547,16 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
         }
         pendingToolUseIds = null;
         hasPendingToolUseIds = false;
-        return;
       }
 
       if (pendingToolUseIds && pendingToolUseIds.size > 0) {
         throw new Error(
-          `messages[${messageIndex}].content must start with tool_result blocks for pending tool_use ids`
+          `messages[${messageIndex}].content must include tool_result blocks for pending tool_use ids`
         );
       }
 
-      if (userParts.length > 0) {
-        flushUserContent(translatedMessages, userParts);
+      if (preToolResultParts.length > 0) {
+        flushUserContent(translatedMessages, preToolResultParts);
       }
       return;
     }
