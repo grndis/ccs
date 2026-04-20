@@ -115,11 +115,7 @@ function listOpenAICompatProxyCandidatePorts(
   }
 
   const candidates = new Set<number>();
-  if (
-    preferredPort >= OPENAI_COMPAT_PROXY_DEFAULT_PORT &&
-    preferredPort <= OPENAI_COMPAT_PROXY_DEFAULT_PORT + 10 &&
-    !excludedPorts.has(preferredPort)
-  ) {
+  if (!excludedPorts.has(preferredPort)) {
     candidates.add(preferredPort);
   }
 
@@ -215,6 +211,22 @@ async function getOpenAICompatProxyStatusForProfile(
   };
 }
 
+async function getLegacyOpenAICompatProxyStatus(): Promise<OpenAICompatProxyStatus | null> {
+  const session = readLegacyOpenAICompatProxySession();
+  const pid = getLegacyOpenAICompatProxyPid();
+  if (!session && !pid) {
+    return null;
+  }
+
+  const port = session?.port;
+  const running = typeof port === 'number' ? await isOpenAICompatProxyRunning(port) : false;
+  return {
+    running,
+    pid: running ? pid || undefined : pid || undefined,
+    ...session,
+  };
+}
+
 function getOpenAICompatProxyStateForProfile(profileName: string): OpenAICompatProxyStateRecord {
   const session = readOpenAICompatProxySession(profileName);
   if (session) {
@@ -243,10 +255,17 @@ export async function listOpenAICompatProxyStatuses(): Promise<OpenAICompatProxy
   if (legacySession?.profileName) {
     profileNames.add(legacySession.profileName);
   }
-  const statuses = await Promise.all(
+  const profileStatuses = await Promise.all(
     [...profileNames].map((profileName) => getOpenAICompatProxyStatusForProfile(profileName))
   );
-  return statuses.filter((status) => status.profileName);
+  const statuses = profileStatuses.filter((status) => status.profileName);
+  if (!legacySession?.profileName) {
+    const legacyStatus = await getLegacyOpenAICompatProxyStatus();
+    if (legacyStatus) {
+      statuses.push(legacyStatus);
+    }
+  }
+  return statuses;
 }
 
 export async function getOpenAICompatProxyStatus(
@@ -333,6 +352,74 @@ async function stopOpenAICompatProxyUnlocked(
   return { success: true };
 }
 
+async function stopLegacyOpenAICompatProxyUnlocked(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const legacySession = readLegacyOpenAICompatProxySession();
+  if (legacySession?.profileName) {
+    return stopOpenAICompatProxyUnlocked(legacySession.profileName);
+  }
+
+  const pid = getLegacyOpenAICompatProxyPid();
+  if (!pid) {
+    removeLegacyOpenAICompatProxyPid();
+    removeLegacyOpenAICompatProxySession();
+    return { success: true };
+  }
+
+  const ownership = verifyProcessOwnership(
+    pid,
+    (commandLine) =>
+      commandLine.includes('--ccs-openai-proxy-daemon') &&
+      commandLine.includes('proxy-daemon-entry')
+  );
+
+  if (ownership === 'not-owned' || ownership === 'not-running') {
+    removeLegacyOpenAICompatProxyPid();
+    removeLegacyOpenAICompatProxySession();
+    return { success: true };
+  }
+
+  if (ownership === 'unknown') {
+    return {
+      success: false,
+      error: `Refusing to stop PID ${pid}: unable to verify daemon ownership`,
+    };
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+    let attempts = 0;
+    while (attempts < 10) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        process.kill(pid, 0);
+        attempts += 1;
+      } catch {
+        break;
+      }
+    }
+
+    if (attempts >= 10) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // Already exited.
+      }
+    }
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== 'ESRCH') {
+      return { success: false, error: `Failed to stop daemon: ${err.message}` };
+    }
+  }
+
+  removeLegacyOpenAICompatProxyPid();
+  removeLegacyOpenAICompatProxySession();
+  return { success: true };
+}
+
 function removeOpenAICompatProxyState(
   state: OpenAICompatProxyStateRecord,
   profileName: string
@@ -356,14 +443,21 @@ export async function stopOpenAICompatProxy(
     }
 
     const statuses = await listOpenAICompatProxyStatuses();
+    const failures: string[] = [];
     for (const status of statuses) {
-      if (!status.profileName) {
-        continue;
-      }
-      const stopped = await stopOpenAICompatProxyUnlocked(status.profileName);
+      const stopped = status.profileName
+        ? await stopOpenAICompatProxyUnlocked(status.profileName)
+        : await stopLegacyOpenAICompatProxyUnlocked();
       if (!stopped.success) {
-        return stopped;
+        failures.push(
+          status.profileName
+            ? `${status.profileName}: ${stopped.error || 'failed to stop proxy'}`
+            : `legacy proxy: ${stopped.error || 'failed to stop proxy'}`
+        );
       }
+    }
+    if (failures.length > 0) {
+      return { success: false, error: `Failed to stop some proxies: ${failures.join('; ')}` };
     }
     return { success: true };
   });

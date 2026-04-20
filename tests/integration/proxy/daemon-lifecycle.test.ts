@@ -5,6 +5,7 @@ import * as path from 'path';
 import getPort from 'get-port';
 import {
   getOpenAICompatProxyStatus,
+  listOpenAICompatProxyStatuses,
   startOpenAICompatProxy,
   stopOpenAICompatProxy,
 } from '../../../src/proxy/proxy-daemon';
@@ -12,6 +13,7 @@ import { resolveOpenAICompatProfileConfig } from '../../../src/proxy/profile-rou
 import {
   getLegacyOpenAICompatProxyPidPath,
   getLegacyOpenAICompatProxySessionPath,
+  getOpenAICompatProxySessionPath,
 } from '../../../src/proxy/proxy-daemon-paths';
 import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
 
@@ -352,4 +354,114 @@ describe('openai proxy daemon lifecycle', () => {
       busyServer.stop(true);
     }
   });
+
+  it('reuses the last-known port even when it is outside the default fallback range', async () => {
+    const preferredPort = await getPort();
+    const settingsPath = path.join(tempDir, 'outside-range.settings.json');
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+          ANTHROPIC_AUTH_TOKEN: 'ollama-outside-range',
+          ANTHROPIC_MODEL: 'qwen3-coder',
+          CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+        },
+      }),
+      'utf8'
+    );
+
+    const profile = resolveOpenAICompatProfileConfig('outside-range', settingsPath, {
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+      ANTHROPIC_AUTH_TOKEN: 'ollama-outside-range',
+      ANTHROPIC_MODEL: 'qwen3-coder',
+      CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+    });
+    if (!profile) {
+      throw new Error('Expected an outside-range OpenAI-compatible profile');
+    }
+
+    fs.mkdirSync(path.dirname(getOpenAICompatProxySessionPath('outside-range')), { recursive: true });
+    fs.writeFileSync(
+      getOpenAICompatProxySessionPath('outside-range'),
+      JSON.stringify(
+        {
+          profileName: profile.profileName,
+          settingsPath: profile.settingsPath,
+          host: '127.0.0.1',
+          port: preferredPort,
+          baseUrl: profile.baseUrl,
+          authToken: 'stale-token',
+          model: profile.model,
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+
+    const started = await startOpenAICompatProxy(profile);
+    expect(started.success).toBe(true);
+    expect(started.port).toBe(preferredPort);
+  });
+
+  it('stops legacy daemons even when the legacy session is missing a profile name', async () => {
+    const port = await getPort();
+    const settingsPath = path.join(tempDir, 'legacy-missing-profile.settings.json');
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+          ANTHROPIC_AUTH_TOKEN: 'ollama-legacy-missing-profile',
+          ANTHROPIC_MODEL: 'qwen3-coder',
+          CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+        },
+      }),
+      'utf8'
+    );
+
+    const profile = resolveOpenAICompatProfileConfig('legacy-missing-profile', settingsPath, {
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+      ANTHROPIC_AUTH_TOKEN: 'ollama-legacy-missing-profile',
+      ANTHROPIC_MODEL: 'qwen3-coder',
+      CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+    });
+    if (!profile) {
+      throw new Error('Expected a legacy fallback OpenAI-compatible profile');
+    }
+
+    const started = await startOpenAICompatProxy(profile, { port });
+    expect(started.success).toBe(true);
+    expect(started.pid).toBeDefined();
+
+    const proxyDir = path.dirname(getLegacyOpenAICompatProxyPidPath());
+    fs.writeFileSync(getLegacyOpenAICompatProxyPidPath(), String(started.pid), 'utf8');
+    fs.writeFileSync(
+      getLegacyOpenAICompatProxySessionPath(),
+      JSON.stringify(
+        {
+          settingsPath: profile.settingsPath,
+          host: '127.0.0.1',
+          port,
+          baseUrl: profile.baseUrl,
+          authToken: started.authToken,
+          model: profile.model,
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+    fs.rmSync(path.join(proxyDir, 'legacy-missing-profile.daemon.pid'), { force: true });
+    fs.rmSync(path.join(proxyDir, 'legacy-missing-profile.session.json'), { force: true });
+
+    const statuses = await listOpenAICompatProxyStatuses();
+    expect(statuses.some((status) => status.port === port)).toBe(true);
+
+    const stopped = await stopOpenAICompatProxy();
+    expect(stopped.success).toBe(true);
+    expect(fs.existsSync(getLegacyOpenAICompatProxyPidPath())).toBe(false);
+    expect(fs.existsSync(getLegacyOpenAICompatProxySessionPath())).toBe(false);
+  }, 35000);
 });
