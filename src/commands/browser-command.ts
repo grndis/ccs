@@ -1,10 +1,11 @@
-import { getBrowserStatus, type BrowserStatusPayload } from '../utils/browser';
+import * as browserUtils from '../utils/browser';
+import { getCcsPathDisplay } from '../utils/config-manager';
 import { getNodePlatformKey } from '../utils/browser/platform';
 import { color, dim, header, initUI, subheader } from '../utils/ui';
 
 type HelpWriter = (line: string) => void;
 
-function summarizeBrowserHealth(status: BrowserStatusPayload): {
+function summarizeBrowserHealth(status: browserUtils.BrowserStatusPayload): {
   label: 'ready' | 'partial' | 'action required';
   exitCode: 0 | 1;
 } {
@@ -23,10 +24,16 @@ function summarizeBrowserHealth(status: BrowserStatusPayload): {
 function writeCommandTable(writeLine: HelpWriter): void {
   writeLine(subheader('Commands'));
   writeLine(
+    `  ${color('ccs browser setup', 'command')}   Configure Claude Browser Attach and try to start the managed browser session`
+  );
+  writeLine(
     `  ${color('ccs browser status', 'command')}  Show Claude attach and Codex browser readiness`
   );
   writeLine(
     `  ${color('ccs browser doctor', 'command')}  Explain what is missing and how to fix it`
+  );
+  writeLine(
+    `  ${color('ccs browser doctor --fix', 'command')}  ${dim('# Alias for browser setup')}`
   );
   writeLine('');
 }
@@ -40,15 +47,20 @@ function writeIntro(writeLine: HelpWriter): void {
 }
 
 function writeClaudeStatus(
-  status: BrowserStatusPayload['claude'],
+  status: browserUtils.BrowserStatusPayload['claude'],
   writeLine: HelpWriter,
   includeLaunchGuidance: boolean
 ): void {
+  const userDataDirDisplay =
+    status.effectiveUserDataDir === status.recommendedUserDataDir
+      ? getCcsPathDisplay('browser', 'chrome-user-data')
+      : status.effectiveUserDataDir;
+
   writeLine(subheader('Claude Browser Attach'));
   writeLine(`  State: ${status.state}`);
   writeLine(`  Enabled: ${status.enabled ? 'yes' : 'no'}`);
   writeLine(`  Source: ${status.source}${status.overrideActive ? ' (env override active)' : ''}`);
-  writeLine(`  User data dir: ${status.effectiveUserDataDir}`);
+  writeLine(`  User data dir: ${userDataDirDisplay}`);
   writeLine(`  DevTools port: ${status.devtoolsPort}`);
   writeLine(`  Managed MCP: ${status.managedMcpServerName}`);
   writeLine(`  Managed path: ${status.managedMcpServerPath}`);
@@ -64,7 +76,10 @@ function writeClaudeStatus(
   writeLine('');
 }
 
-function writeCodexStatus(status: BrowserStatusPayload['codex'], writeLine: HelpWriter): void {
+function writeCodexStatus(
+  status: browserUtils.BrowserStatusPayload['codex'],
+  writeLine: HelpWriter
+): void {
   writeLine(subheader('Codex Browser Tools'));
   writeLine(`  State: ${status.state}`);
   writeLine(`  Enabled: ${status.enabled ? 'yes' : 'no'}`);
@@ -79,13 +94,36 @@ function writeCodexStatus(status: BrowserStatusPayload['codex'], writeLine: Help
   writeLine('');
 }
 
+function writeSetupSummary(
+  result: browserUtils.BrowserSetupResult,
+  writeLine: HelpWriter,
+  label: string
+): void {
+  writeLine(subheader('Overall'));
+  writeLine(`  Command: ${label}`);
+  writeLine(`  Result: ${result.ready ? 'ready' : 'action required'}`);
+  writeLine(`  Config updated: ${result.configUpdated ? 'yes' : 'no'}`);
+  writeLine(`  Created user-data dir: ${result.createdUserDataDir ? 'yes' : 'no'}`);
+  writeLine(`  Browser MCP ready: ${result.mcpReady ? 'yes' : 'no'}`);
+  if (result.launchAttempted) {
+    writeLine(`  Browser launch: ${result.launchStarted ? 'started' : 'failed'}`);
+  }
+  writeLine(`  Launch command: ${result.launchCommand}`);
+  if (result.notes.length > 0) {
+    for (const note of result.notes) {
+      writeLine(`  Note: ${note}`);
+    }
+  }
+  writeLine('');
+}
+
 export async function showBrowserHelp(writeLine: HelpWriter = console.log): Promise<void> {
   await initUI();
   writeLine(header('CCS Browser Help'));
   writeLine('');
   writeIntro(writeLine);
   writeLine(subheader('Usage'));
-  writeLine(`  ${color('ccs browser <status|doctor>', 'command')}`);
+  writeLine(`  ${color('ccs browser <setup|status|doctor>', 'command')}`);
   writeLine(`  ${color('ccs help browser', 'command')}`);
   writeLine('');
   writeCommandTable(writeLine);
@@ -94,9 +132,17 @@ export async function showBrowserHelp(writeLine: HelpWriter = console.log): Prom
   writeLine('  Codex Browser Tools depend on a Codex build that supports --config overrides.');
   writeLine('');
   writeLine(subheader('Examples'));
-  writeLine(`  ${color('ccs browser status', 'command')}  ${dim('# Quick readiness snapshot')}`);
+  writeLine(
+    `  ${color('ccs browser setup', 'command')}   ${dim('# Configure and start the managed browser session')}`
+  );
+  writeLine(
+    `  ${color('ccs browser setup --no-launch', 'command')}  ${dim('# Save setup only, do not start Chrome')}`
+  );
   writeLine(
     `  ${color('ccs browser doctor', 'command')}  ${dim('# Detailed troubleshooting output')}`
+  );
+  writeLine(
+    `  ${color('ccs browser doctor --fix', 'command')}  ${dim('# Run the setup flow from doctor')}`
   );
   writeLine(
     `  ${color('ccs config', 'command')}          ${dim('# Open Settings > Browser in the dashboard')}`
@@ -104,13 +150,34 @@ export async function showBrowserHelp(writeLine: HelpWriter = console.log): Prom
   writeLine('');
 }
 
+function isHelpRequest(args: string[]): boolean {
+  return args.length === 0 || args.includes('--help') || args.includes('-h');
+}
+
 export async function handleBrowserCommand(
   args: string[],
   writeLine: HelpWriter = console.log
 ): Promise<void> {
-  const subcommand = args[0];
-  if (!subcommand || subcommand === '--help' || subcommand === '-h' || subcommand === 'help') {
+  if (isHelpRequest(args)) {
     await showBrowserHelp(writeLine);
+    return;
+  }
+
+  const subcommand = args[0];
+  if (subcommand === 'setup' || (subcommand === 'doctor' && args.includes('--fix'))) {
+    await initUI();
+    const result = await browserUtils.runBrowserSetup({
+      launch: !args.includes('--no-launch'),
+    });
+
+    const label = subcommand === 'setup' ? 'ccs browser setup' : 'ccs browser doctor --fix';
+    writeLine(header(label));
+    writeLine('');
+    writeIntro(writeLine);
+    writeSetupSummary(result, writeLine, label);
+    writeClaudeStatus(result.status.claude, writeLine, !result.ready);
+    writeCodexStatus(result.status.codex, writeLine);
+    process.exitCode = result.ready ? 0 : 1;
     return;
   }
 
@@ -118,14 +185,14 @@ export async function handleBrowserCommand(
     await initUI();
     writeLine(color(`Unknown browser subcommand: ${subcommand}`, 'error'));
     writeLine('');
-    writeLine(`  ${dim('Supported subcommands: status, doctor')}`);
+    writeLine(`  ${dim('Supported subcommands: setup, status, doctor')}`);
     writeLine('');
     process.exitCode = 1;
     return;
   }
 
   await initUI();
-  const status = await getBrowserStatus();
+  const status = await browserUtils.getBrowserStatus();
 
   writeLine(header(`ccs browser ${subcommand}`));
   writeLine('');

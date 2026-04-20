@@ -188,6 +188,17 @@ function getSuggestionsForCommand(tokensBeforeCurrent: string[]): CompletionSugg
       if (subcommand === 'logs')
         return completeSubcommands([], ['--follow', '--service', '--host', '--help', '-h']);
       return completeSubcommands([], COMMAND_FLAG_SUGGESTIONS.docker);
+    case 'browser':
+      if (!subcommand || subcommand.startsWith('-')) {
+        return completeSubcommands(['setup', 'status', 'doctor'], ['--help', '-h']);
+      }
+      if (subcommand === 'setup') {
+        return completeSubcommands([], ['--no-launch', '--help', '-h']);
+      }
+      if (subcommand === 'doctor') {
+        return completeSubcommands([], ['--fix', '-f', '--help', '-h', '--no-launch']);
+      }
+      return completeSubcommands([], ['--help', '-h']);
     case 'cursor':
       return completeSubcommands(CURSOR_COMPLETION_SUBCOMMANDS);
     case 'proxy':
