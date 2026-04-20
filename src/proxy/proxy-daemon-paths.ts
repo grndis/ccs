@@ -25,3 +25,11 @@ export function getOpenAICompatProxySessionPath(profileName: string): string {
     `${getOpenAICompatProxyProfileKey(profileName)}.session.json`
   );
 }
+
+export function getLegacyOpenAICompatProxyPidPath(): string {
+  return path.join(getOpenAICompatProxyDir(), 'daemon.pid');
+}
+
+export function getLegacyOpenAICompatProxySessionPath(): string {
+  return path.join(getOpenAICompatProxyDir(), 'session.json');
+}

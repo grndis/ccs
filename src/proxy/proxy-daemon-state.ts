@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   getOpenAICompatProxyDir,
+  getLegacyOpenAICompatProxyPidPath,
+  getLegacyOpenAICompatProxySessionPath,
   getOpenAICompatProxyPidPath,
   getOpenAICompatProxySessionPath,
 } from './proxy-daemon-paths';
@@ -21,14 +23,22 @@ function ensureProxyDir(): void {
   fs.mkdirSync(getOpenAICompatProxyDir(), { recursive: true });
 }
 
-export function getOpenAICompatProxyPid(profileName: string): number | null {
+function readPid(pidPath: string): number | null {
   try {
-    const raw = fs.readFileSync(getOpenAICompatProxyPidPath(profileName), 'utf8').trim();
+    const raw = fs.readFileSync(pidPath, 'utf8').trim();
     const pid = Number.parseInt(raw, 10);
     return Number.isInteger(pid) ? pid : null;
   } catch {
     return null;
   }
+}
+
+export function getOpenAICompatProxyPid(profileName: string): number | null {
+  return readPid(getOpenAICompatProxyPidPath(profileName));
+}
+
+export function getLegacyOpenAICompatProxyPid(): number | null {
+  return readPid(getLegacyOpenAICompatProxyPidPath());
 }
 
 export function writeOpenAICompatProxyPid(profileName: string, pid: number): void {
@@ -44,14 +54,28 @@ export function removeOpenAICompatProxyPid(profileName: string): void {
   }
 }
 
-export function readOpenAICompatProxySession(profileName: string): OpenAICompatProxySession | null {
+export function removeLegacyOpenAICompatProxyPid(): void {
   try {
-    return JSON.parse(
-      fs.readFileSync(getOpenAICompatProxySessionPath(profileName), 'utf8')
-    ) as OpenAICompatProxySession;
+    fs.unlinkSync(getLegacyOpenAICompatProxyPidPath());
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+function readSession(sessionPath: string): OpenAICompatProxySession | null {
+  try {
+    return JSON.parse(fs.readFileSync(sessionPath, 'utf8')) as OpenAICompatProxySession;
   } catch {
     return null;
   }
+}
+
+export function readOpenAICompatProxySession(profileName: string): OpenAICompatProxySession | null {
+  return readSession(getOpenAICompatProxySessionPath(profileName));
+}
+
+export function readLegacyOpenAICompatProxySession(): OpenAICompatProxySession | null {
+  return readSession(getLegacyOpenAICompatProxySessionPath());
 }
 
 export function writeOpenAICompatProxySession(session: OpenAICompatProxySession): void {
@@ -71,6 +95,14 @@ export function removeOpenAICompatProxySession(profileName: string): void {
   }
 }
 
+export function removeLegacyOpenAICompatProxySession(): void {
+  try {
+    fs.unlinkSync(getLegacyOpenAICompatProxySessionPath());
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
 export function listOpenAICompatProxyProfileNames(): string[] {
   try {
     const entries = fs.readdirSync(getOpenAICompatProxyDir(), { withFileTypes: true });
@@ -84,18 +116,6 @@ export function listOpenAICompatProxyProfileNames(): string[] {
     return [...profileKeys].map((profileKey) => decodeURIComponent(profileKey));
   } catch {
     return [];
-  }
-}
-
-export function cleanupLegacyOpenAICompatProxyState(): void {
-  ensureProxyDir();
-  const legacyNames = ['daemon.pid', 'session.json'];
-  for (const legacyName of legacyNames) {
-    try {
-      fs.unlinkSync(path.join(getOpenAICompatProxyDir(), legacyName));
-    } catch {
-      // Best-effort cleanup.
-    }
   }
 }
 

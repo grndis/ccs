@@ -9,6 +9,11 @@ import {
   stopOpenAICompatProxy,
 } from '../../../src/proxy/proxy-daemon';
 import { resolveOpenAICompatProfileConfig } from '../../../src/proxy/profile-router';
+import {
+  getLegacyOpenAICompatProxyPidPath,
+  getLegacyOpenAICompatProxySessionPath,
+} from '../../../src/proxy/proxy-daemon-paths';
+import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
 
 let originalCcsHome: string | undefined;
 let tempDir: string;
@@ -139,5 +144,163 @@ describe('openai proxy daemon lifecycle', () => {
 
     const secondHealth = await fetch(`http://127.0.0.1:${secondPort}/health`);
     expect(secondHealth.status).toBe(200);
+  });
+
+  it('keeps a legacy singleton daemon visible across upgrade', async () => {
+    const port = await getPort();
+    const settingsPath = path.join(tempDir, 'legacy.settings.json');
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+          ANTHROPIC_AUTH_TOKEN: 'ollama-legacy',
+          ANTHROPIC_MODEL: 'qwen3-coder',
+          CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+        },
+      }),
+      'utf8'
+    );
+
+    const profile = resolveOpenAICompatProfileConfig('legacy', settingsPath, {
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+      ANTHROPIC_AUTH_TOKEN: 'ollama-legacy',
+      ANTHROPIC_MODEL: 'qwen3-coder',
+      CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+    });
+    if (!profile) {
+      throw new Error('Expected a legacy OpenAI-compatible profile');
+    }
+
+    const started = await startOpenAICompatProxy(profile, { port });
+    expect(started.success).toBe(true);
+    expect(started.pid).toBeDefined();
+
+    const proxyDir = path.dirname(getLegacyOpenAICompatProxyPidPath());
+    fs.writeFileSync(getLegacyOpenAICompatProxyPidPath(), String(started.pid), 'utf8');
+    fs.writeFileSync(
+      getLegacyOpenAICompatProxySessionPath(),
+      JSON.stringify(
+        {
+          profileName: profile.profileName,
+          settingsPath: profile.settingsPath,
+          host: '127.0.0.1',
+          port,
+          baseUrl: profile.baseUrl,
+          authToken: started.authToken,
+          model: profile.model,
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+    fs.rmSync(path.join(proxyDir, 'legacy.daemon.pid'), { force: true });
+    fs.rmSync(path.join(proxyDir, 'legacy.session.json'), { force: true });
+
+    const status = await getOpenAICompatProxyStatus('legacy');
+    expect(status.running).toBe(true);
+    expect(status.port).toBe(port);
+
+    const restarted = await startOpenAICompatProxy(profile);
+    expect(restarted.success).toBe(true);
+    expect(restarted.alreadyRunning).toBe(true);
+    expect(restarted.port).toBe(port);
+
+    const stopped = await stopOpenAICompatProxy('legacy');
+    expect(stopped.success).toBe(true);
+    expect(fs.existsSync(getLegacyOpenAICompatProxyPidPath())).toBe(false);
+    expect(fs.existsSync(getLegacyOpenAICompatProxySessionPath())).toBe(false);
+  }, 35000);
+
+  it('fails when an explicit port is already occupied', async () => {
+    const occupiedPort = await getPort();
+    const server = Bun.serve({
+      port: occupiedPort,
+      hostname: '127.0.0.1',
+      fetch: () => new Response('busy'),
+    });
+
+    try {
+      const settingsPath = path.join(tempDir, 'occupied-explicit.settings.json');
+      fs.writeFileSync(
+        settingsPath,
+        JSON.stringify({
+          env: {
+            ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+            ANTHROPIC_AUTH_TOKEN: 'ollama-explicit',
+            ANTHROPIC_MODEL: 'qwen3-coder',
+            CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+          },
+        }),
+        'utf8'
+      );
+
+      const profile = resolveOpenAICompatProfileConfig('explicit', settingsPath, {
+        ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+        ANTHROPIC_AUTH_TOKEN: 'ollama-explicit',
+        ANTHROPIC_MODEL: 'qwen3-coder',
+        CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+      });
+      if (!profile) {
+        throw new Error('Expected an explicit-port OpenAI-compatible profile');
+      }
+
+      const started = await startOpenAICompatProxy(profile, { port: occupiedPort });
+      expect(started.success).toBe(false);
+      expect(started.port).toBe(occupiedPort);
+      expect(started.error).toContain(`Requested proxy port ${occupiedPort} is already in use`);
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  it('fails when a configured profile port is already occupied', async () => {
+    const occupiedPort = await getPort();
+    const server = Bun.serve({
+      port: occupiedPort,
+      hostname: '127.0.0.1',
+      fetch: () => new Response('busy'),
+    });
+
+    try {
+      mutateUnifiedConfig((config) => {
+        config.proxy = {
+          ...(config.proxy ?? {}),
+          profile_ports: { mapped: occupiedPort },
+        };
+      });
+
+      const settingsPath = path.join(tempDir, 'occupied-mapped.settings.json');
+      fs.writeFileSync(
+        settingsPath,
+        JSON.stringify({
+          env: {
+            ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+            ANTHROPIC_AUTH_TOKEN: 'ollama-mapped',
+            ANTHROPIC_MODEL: 'qwen3-coder',
+            CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+          },
+        }),
+        'utf8'
+      );
+
+      const profile = resolveOpenAICompatProfileConfig('mapped', settingsPath, {
+        ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+        ANTHROPIC_AUTH_TOKEN: 'ollama-mapped',
+        ANTHROPIC_MODEL: 'qwen3-coder',
+        CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+      });
+      if (!profile) {
+        throw new Error('Expected a mapped-port OpenAI-compatible profile');
+      }
+
+      const started = await startOpenAICompatProxy(profile);
+      expect(started.success).toBe(false);
+      expect(started.port).toBe(occupiedPort);
+      expect(started.error).toContain(`Requested proxy port ${occupiedPort} is already in use`);
+    } finally {
+      server.stop(true);
+    }
   });
 });
