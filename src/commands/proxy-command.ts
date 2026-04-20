@@ -199,7 +199,7 @@ export async function handleProxyCommand(args: string[]): Promise<number> {
     case 'start':
       return handleStart(args.slice(1));
     case 'stop': {
-      const profileName = args[1] && !args[1]?.startsWith('-') ? args[1] : undefined;
+      const profileName = args[1] && !args[1].startsWith('-') ? args[1] : undefined;
       const result = await stopOpenAICompatProxy(profileName);
       if (!result.success) {
         console.error(fail(result.error || 'Failed to stop proxy'));
