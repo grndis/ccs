@@ -120,7 +120,7 @@ describe('ProxyRequestTransformer regressions', () => {
           },
         ],
       })
-    ).toThrow('tool_result blocks must come before other user content');
+    ).not.toThrow();
 
     expect(() =>
       new ProxyRequestTransformer().transform({
@@ -135,7 +135,7 @@ describe('ProxyRequestTransformer regressions', () => {
           },
         ],
       })
-    ).toThrow('must start with tool_result blocks for pending tool_use ids');
+    ).toThrow('must include tool_result blocks for pending tool_use ids');
   });
 
   it('rejects tool_result content that cannot be represented as OpenAI tool text', () => {

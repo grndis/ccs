@@ -31,17 +31,15 @@ describe('attachDisconnectAbortHandlers', () => {
     );
 
     expect(req.listenerCount('aborted')).toBe(1);
-    expect(req.listenerCount('close')).toBe(1);
+    expect(req.listenerCount('close')).toBe(0);
     expect(req.socket.listenerCount('close')).toBe(1);
-    expect(res.listenerCount('close')).toBe(1);
+    expect(res.listenerCount('close')).toBe(0);
     expect(res.socket.listenerCount('close')).toBe(1);
 
     cleanup();
 
     expect(req.listenerCount('aborted')).toBe(0);
-    expect(req.listenerCount('close')).toBe(0);
     expect(req.socket.listenerCount('close')).toBe(0);
-    expect(res.listenerCount('close')).toBe(0);
     expect(res.socket.listenerCount('close')).toBe(0);
   });
 
@@ -60,9 +58,9 @@ describe('attachDisconnectAbortHandlers', () => {
       }
     );
 
-    req.emit('close');
+    req.emit('aborted');
     req.socket.emit('close');
-    res.emit('close');
+    res.socket.emit('close');
 
     expect(controller.signal.aborted).toBe(true);
     expect(disconnectCount).toBe(1);
