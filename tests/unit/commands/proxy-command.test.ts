@@ -9,4 +9,8 @@ describe('findPositionalArg', () => {
   it('treats arguments after -- as positional', () => {
     expect(findPositionalArg(['--', '--port', '3456'], ['--port'])).toBe('--port');
   });
+
+  it('returns undefined when -- is the final argument', () => {
+    expect(findPositionalArg(['--'], ['--port'])).toBeUndefined();
+  });
 });

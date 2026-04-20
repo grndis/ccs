@@ -467,14 +467,14 @@ export async function startOpenAICompatProxy(
         proc.stderr?.on('data', (chunk) => {
           stderr += chunk;
         });
-        if (persistState) {
-          commitState();
-        }
 
         let attempts = 0;
         const poll = async () => {
           attempts += 1;
           if (await isOpenAICompatProxyRunning(port)) {
+            if (persistState) {
+              commitState();
+            }
             finish({
               success: true,
               pid: proc.pid,

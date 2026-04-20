@@ -33,7 +33,7 @@ export function findPositionalArg(
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--') {
-      return args[i + 1];
+      return i + 1 < args.length ? args[i + 1] : undefined;
     }
     if (arg.startsWith('-')) {
       if (optionsWithValues.includes(arg)) {
