@@ -5,6 +5,7 @@ import { fail, info, ok } from '../utils/ui';
 import {
   buildOpenAICompatProxyEnv,
   getOpenAICompatProxyStatus,
+  listOpenAICompatProxyStatuses,
   resolveOpenAICompatProfileConfig,
   startOpenAICompatProxy,
   stopOpenAICompatProxy,
@@ -21,6 +22,34 @@ function parseOptionValue(args: string[], key: string): string | undefined {
   return withEquals ? withEquals.slice(prefix.length) : undefined;
 }
 
+function hasHelpFlag(args: string[]): boolean {
+  return args.includes('--help') || args.includes('-h');
+}
+
+export function findPositionalArg(
+  args: string[],
+  optionsWithValues: string[] = [],
+  flagOptions: string[] = []
+): string | undefined {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === '--') {
+      return i + 1 < args.length ? args[i + 1] : undefined;
+    }
+    if (arg.startsWith('-')) {
+      if (flagOptions.includes(arg)) {
+        continue;
+      }
+      if (optionsWithValues.includes(arg)) {
+        i += 1;
+      }
+      continue;
+    }
+    return arg;
+  }
+  return undefined;
+}
+
 function showHelp(): number {
   console.log('OpenAI-Compatible Proxy');
   console.log('');
@@ -30,9 +59,9 @@ function showHelp(): number {
   console.log(
     '  start <profile>   Start the local proxy for an OpenAI-compatible settings profile'
   );
-  console.log('  stop              Stop the running proxy');
-  console.log('  status            Show daemon status and active profile');
-  console.log('  activate          Print shell exports for the running proxy');
+  console.log('  stop [profile]    Stop the running proxy (or all proxies when omitted)');
+  console.log('  status [profile]  Show daemon status');
+  console.log('  activate [profile] Print shell exports for the running proxy');
   console.log('');
   console.log('Options:');
   console.log('  --port <n>        Override the local proxy port (default: 3456)');
@@ -62,7 +91,10 @@ function resolveProfile(profileName: string) {
 }
 
 async function handleStart(args: string[]): Promise<number> {
-  const profileName = args.find((arg) => !arg.startsWith('-'));
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
+  const profileName = findPositionalArg(args, ['--port', '--host'], ['--insecure']);
   if (!profileName) {
     console.error(
       fail('Usage: ccs proxy start <profile> [--port <n>] [--host <addr>] [--insecure]')
@@ -100,31 +132,78 @@ async function handleStart(args: string[]): Promise<number> {
   return 0;
 }
 
-async function handleStatus(): Promise<number> {
+async function handleStatus(args: string[] = []): Promise<number> {
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
+  const profileName = findPositionalArg(args);
+  const printStatus = (status: Awaited<ReturnType<typeof getOpenAICompatProxyStatus>>) => {
+    console.log(
+      status.running
+        ? ok(`Proxy running on port ${status.port ?? 'unknown'}`)
+        : info(`Proxy is not running${status.port ? ` (last known port ${status.port})` : ''}`)
+    );
+    if (status.host && status.port) {
+      console.log(`  Host: ${status.host}`);
+      console.log(`  Local URL: http://${status.host}:${status.port}`);
+    }
+    if (status.profileName) {
+      console.log(`  Profile: ${status.profileName}`);
+    }
+    if (status.baseUrl) {
+      console.log(`  Base URL: ${status.baseUrl}`);
+    }
+    if (status.model) {
+      console.log(`  Model: ${status.model}`);
+    }
+    if (status.pid) {
+      console.log(`  PID: ${status.pid}`);
+    }
+  };
+
+  if (profileName) {
+    const status = await getOpenAICompatProxyStatus(profileName);
+    if (!status.running && !status.profileName) {
+      console.log(info('Proxy is not running'));
+      return 0;
+    }
+    printStatus(status);
+    return 0;
+  }
+
   const status = await getOpenAICompatProxyStatus();
-  if (!status.running) {
+  if (!status.running && !status.profileName) {
     console.log(info('Proxy is not running'));
     return 0;
   }
 
-  console.log(ok(`Proxy running on port ${status.port}`));
-  if (status.host) {
-    console.log(`  Host: ${status.host}`);
-    console.log(`  Local URL: http://${status.host}:${status.port}`);
+  if (status.running && !status.profileName) {
+    const running = (await listOpenAICompatProxyStatuses()).filter((entry) => entry.running);
+    for (const entry of running) {
+      printStatus(entry);
+    }
+    return 0;
   }
-  console.log(`  Profile: ${status.profileName}`);
-  console.log(`  Base URL: ${status.baseUrl}`);
-  if (status.model) {
-    console.log(`  Model: ${status.model}`);
-  }
-  if (status.pid) {
-    console.log(`  PID: ${status.pid}`);
-  }
+
+  printStatus(status);
   return 0;
 }
 
 async function handleActivate(args: string[]): Promise<number> {
-  const status = await getOpenAICompatProxyStatus();
+  if (hasHelpFlag(args)) {
+    return showHelp();
+  }
+  const profileName = findPositionalArg(args, ['--shell']);
+  if (!profileName) {
+    const running = (await listOpenAICompatProxyStatuses()).filter((entry) => entry.running);
+    if (running.length > 1) {
+      console.error(
+        fail('Multiple proxies are running. Specify a profile: ccs proxy activate <profile>')
+      );
+      return 1;
+    }
+  }
+  const status = await getOpenAICompatProxyStatus(profileName);
   if (!status.running || !status.profileName || !status.port || !status.authToken) {
     console.error(fail('Proxy is not running. Start it with: ccs proxy start <profile>'));
     return 1;
@@ -163,16 +242,20 @@ export async function handleProxyCommand(args: string[]): Promise<number> {
     case 'start':
       return handleStart(args.slice(1));
     case 'stop': {
-      const result = await stopOpenAICompatProxy();
+      if (hasHelpFlag(args.slice(1))) {
+        return showHelp();
+      }
+      const profileName = args[1] && !args[1].startsWith('-') ? args[1] : undefined;
+      const result = await stopOpenAICompatProxy(profileName);
       if (!result.success) {
         console.error(fail(result.error || 'Failed to stop proxy'));
         return 1;
       }
-      console.log(ok('Proxy stopped'));
+      console.log(ok(profileName ? `Proxy stopped for profile ${profileName}` : 'Proxy stopped'));
       return 0;
     }
     case 'status':
-      return handleStatus();
+      return handleStatus(args.slice(1));
     case 'activate':
       return handleActivate(args.slice(1));
     default:

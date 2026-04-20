@@ -508,6 +508,10 @@ export interface OpenAICompatProxyRoutingConfig {
 }
 
 export interface OpenAICompatProxyConfig {
+  /** Default local port for OpenAI-compatible proxy instances */
+  port?: number;
+  /** Optional profile-scoped local port overrides */
+  profile_ports?: Record<string, number>;
   routing?: OpenAICompatProxyRoutingConfig;
 }
 
@@ -986,6 +990,8 @@ export const DEFAULT_CLIPROXY_SERVER_CONFIG: CliproxyServerConfig = {
 };
 
 export const DEFAULT_OPENAI_COMPAT_PROXY_CONFIG: OpenAICompatProxyConfig = {
+  port: 3456,
+  profile_ports: {},
   routing: {
     longContextThreshold: 60_000,
   },
@@ -1016,6 +1022,8 @@ export function createEmptyUnifiedConfig(): UnifiedConfig {
       },
     },
     proxy: {
+      port: DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.port,
+      profile_ports: { ...DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.profile_ports },
       routing: {
         ...DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.routing,
       },

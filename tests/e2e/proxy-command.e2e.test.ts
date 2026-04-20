@@ -22,6 +22,10 @@ function runCli(args: string[], extraEnv: Record<string, string> = {}) {
 }
 
 beforeAll(() => {
+  if (process.env.CCS_E2E_SKIP_BUILD === '1') {
+    expect(fs.existsSync(DIST_ENTRY)).toBe(true);
+    return;
+  }
   const result = spawnSync(process.execPath, ['run', 'build'], {
     encoding: 'utf8',
     env: process.env,
@@ -45,6 +49,41 @@ afterEach(() => {
 });
 
 describe('proxy command e2e', () => {
+  it('shows help for subcommand help flags without executing the subcommand', () => {
+    const help = runCli(['proxy', 'stop', '--help']);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('Usage: ccs proxy <start|stop|status|activate> [profile] [options]');
+    expect(help.stdout).toContain('stop [profile]    Stop the running proxy (or all proxies when omitted)');
+  });
+
+  it('shows the last-known proxy state when no proxy is currently running', async () => {
+    const stalePort = await getPort();
+    const proxyDir = path.join(tempDir, '.ccs', 'proxy');
+    fs.mkdirSync(proxyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(proxyDir, 'stale.session.json'),
+      JSON.stringify(
+        {
+          profileName: 'stale',
+          settingsPath: path.join(tempDir, '.ccs', 'stale.settings.json'),
+          host: '127.0.0.1',
+          port: stalePort,
+          baseUrl: 'http://127.0.0.1:11434',
+          authToken: 'deadbeef',
+          model: 'qwen3-coder',
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+
+    const status = runCli(['proxy', 'status']);
+    expect(status.status).toBe(0);
+    expect(status.stdout).toContain(`Proxy is not running (last known port ${stalePort})`);
+    expect(status.stdout).toContain('Profile: stale');
+  });
+
   it('starts, reports status, activates, and stops via the built CLI', async () => {
     const port = await getPort();
     const ccsDir = path.join(tempDir, '.ccs');
@@ -106,5 +145,51 @@ describe('proxy command e2e', () => {
 
     const stopped = runCli(['proxy', 'stop']);
     expect(stopped.status).toBe(0);
+  }, 35000);
+
+  it('requires an explicit profile when activating with multiple running proxies', async () => {
+    const firstPort = await getPort();
+    const ccsDir = path.join(tempDir, '.ccs');
+    fs.mkdirSync(ccsDir, { recursive: true });
+    const firstSettingsPath = path.join(ccsDir, 'ccg.settings.json');
+    const secondSettingsPath = path.join(ccsDir, 'ccgm.settings.json');
+    fs.writeFileSync(
+      path.join(ccsDir, 'config.json'),
+      JSON.stringify({ profiles: { ccg: firstSettingsPath, ccgm: secondSettingsPath } }, null, 2),
+      'utf8'
+    );
+    fs.writeFileSync(
+      firstSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+          ANTHROPIC_AUTH_TOKEN: 'ollama-ccg',
+          ANTHROPIC_MODEL: 'qwen3-coder',
+          CCS_DROID_PROVIDER: 'generic-chat-completion-api',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      secondSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-ccgm',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+
+    expect(runCli(['proxy', 'start', 'ccg', '--port', String(firstPort)]).status).toBe(0);
+    const secondPort = await getPort();
+    expect(runCli(['proxy', 'start', 'ccgm', '--port', String(secondPort)]).status).toBe(0);
+
+    const activate = runCli(['proxy', 'activate', '--shell', 'bash']);
+    expect(activate.status).toBe(1);
+    expect(activate.stderr).toContain(
+      'Multiple proxies are running. Specify a profile: ccs proxy activate <profile>'
+    );
   }, 35000);
 });

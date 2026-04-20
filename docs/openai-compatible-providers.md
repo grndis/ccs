@@ -72,7 +72,10 @@ Useful variants:
 
 ```bash
 ccs proxy start hf --host 127.0.0.1
+ccs proxy activate hf
 ccs proxy activate --fish
+ccs proxy status hf
+ccs proxy stop hf
 ```
 
 `ccs proxy activate` now prints the full local runtime contract:
@@ -85,16 +88,26 @@ ccs proxy activate --fish
 - `API_TIMEOUT_MS`
 - `NO_PROXY`
 
-## One Active Proxy Profile
+## Multiple Active Proxy Profiles
 
-The current runtime is a single local proxy daemon.
+CCS now stores OpenAI-compatible proxy state per profile instead of treating the
+runtime as a singleton.
 
-- Reusing the same OpenAI-compatible profile is supported
-- Starting a different OpenAI-compatible profile while one proxy is already
-  running is rejected instead of silently replacing the active upstream
+- Different compatible profiles can run at the same time on separate local ports
+- `ccs proxy activate` without a profile stays convenient when only one proxy is
+  running
+- When multiple proxies are running, pass the profile explicitly to
+  `activate`, `status`, or `stop`
 
-This is intentional to avoid breaking an in-flight Claude session by swapping
-its upstream provider out from under it.
+If you want deterministic ports, configure them in `~/.ccs/config.yaml`:
+
+```yaml
+proxy:
+  port: 3456
+  profile_ports:
+    hf: 3456
+    openai: 3461
+```
 
 ## Request-Time Routing
 

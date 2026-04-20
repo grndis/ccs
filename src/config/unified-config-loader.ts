@@ -19,6 +19,7 @@ import {
   DEFAULT_GLOBAL_ENV,
   DEFAULT_CLIPROXY_SERVER_CONFIG,
   DEFAULT_CLIPROXY_SAFETY_CONFIG,
+  DEFAULT_OPENAI_COMPAT_PROXY_CONFIG,
   DEFAULT_QUOTA_MANAGEMENT_CONFIG,
   DEFAULT_THINKING_CONFIG,
   DEFAULT_OFFICIAL_CHANNELS_CONFIG,
@@ -414,6 +415,10 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
       },
     },
     proxy: {
+      port: partial.proxy?.port ?? DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.port,
+      profile_ports: partial.proxy?.profile_ports ?? {
+        ...DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.profile_ports,
+      },
       routing: {
         default: partial.proxy?.routing?.default ?? defaults.proxy?.routing?.default,
         background: partial.proxy?.routing?.background ?? defaults.proxy?.routing?.background,

@@ -8,10 +8,28 @@ export function getOpenAICompatProxyDir(): string {
   return path.join(getCcsDir(), 'proxy');
 }
 
-export function getOpenAICompatProxyPidPath(): string {
+export function getOpenAICompatProxyProfileKey(profileName: string): string {
+  return encodeURIComponent(profileName.trim());
+}
+
+export function getOpenAICompatProxyPidPath(profileName: string): string {
+  return path.join(
+    getOpenAICompatProxyDir(),
+    `${getOpenAICompatProxyProfileKey(profileName)}.daemon.pid`
+  );
+}
+
+export function getOpenAICompatProxySessionPath(profileName: string): string {
+  return path.join(
+    getOpenAICompatProxyDir(),
+    `${getOpenAICompatProxyProfileKey(profileName)}.session.json`
+  );
+}
+
+export function getLegacyOpenAICompatProxyPidPath(): string {
   return path.join(getOpenAICompatProxyDir(), 'daemon.pid');
 }
 
-export function getOpenAICompatProxySessionPath(): string {
+export function getLegacyOpenAICompatProxySessionPath(): string {
   return path.join(getOpenAICompatProxyDir(), 'session.json');
 }
